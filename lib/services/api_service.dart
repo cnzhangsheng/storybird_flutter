@@ -59,7 +59,7 @@ class ApiConfig {
     return Environment.apiBaseUrl;
   }
 
-  static const Duration timeoutDuration = Duration(seconds: 30);
+  static const Duration timeoutDuration = Duration(seconds: 60);
 }
 
 /// API client for backend communication
