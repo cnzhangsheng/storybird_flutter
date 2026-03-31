@@ -33,6 +33,9 @@ class ReadingState {
   /// 发音偏好: '美式', '英式'
   final String accent;
 
+  /// 是否循环播放
+  final bool loopEnabled;
+
   /// 是否正在播放
   final bool isPlaying;
 
@@ -51,6 +54,7 @@ class ReadingState {
     this.showTranslation = true,
     this.speedLabel = '中',
     this.accent = '美式',
+    this.loopEnabled = false,
     this.isPlaying = false,
     this.isLoading = false,
     this.error,
@@ -88,17 +92,18 @@ class ReadingState {
     return [];
   }
 
-  /// 获取语速对应的 speech rate (0.0 - 1.0)
+  /// 获取语速对应的 speech rate
+  /// Android TTS 范围: 0.5 - 2.0，但部分引擎支持更小值
   double get speechRate {
     switch (speedLabel) {
       case '慢':
-        return 0.0;
+        return 0.1;
       case '中':
-        return 0.2;
+        return 0.3;
       case '正常':
         return 0.5;
       default:
-        return 0.2;
+        return 0.3;
     }
   }
 
@@ -109,10 +114,15 @@ class ReadingState {
         return 'en-GB';
       case '美式':
         return 'en-US';
+      case '默认':
+        return 'en';
       default:
-        return 'en-US';
+        return 'en';
     }
   }
+
+  /// 获取可用的发音选项列表
+  List<String> get availableAccents => ttsService.getAvailableAccents();
 
   ReadingState copyWith({
     BookDetail? bookDetail,
@@ -123,6 +133,7 @@ class ReadingState {
     bool? showTranslation,
     String? speedLabel,
     String? accent,
+    bool? loopEnabled,
     bool? isPlaying,
     bool? isLoading,
     String? error,
@@ -139,6 +150,7 @@ class ReadingState {
       showTranslation: showTranslation ?? this.showTranslation,
       speedLabel: speedLabel ?? this.speedLabel,
       accent: accent ?? this.accent,
+      loopEnabled: loopEnabled ?? this.loopEnabled,
       isPlaying: isPlaying ?? this.isPlaying,
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
@@ -154,7 +166,80 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
 
   ReadingNotifier({TtsService? ttsService})
       : _ttsService = ttsService ?? TtsService(),
-        super(const ReadingState());
+        super(const ReadingState()) {
+    // 使用新的回调机制，确保状态同步
+    _ttsService.addStateCallback(_onTtsStateChanged);
+    // 加载用户设置
+    _loadUserSettings();
+  }
+
+  /// 从后端加载用户设置
+  Future<void> _loadUserSettings() async {
+    try {
+      final settings = await usersApi.getSettings();
+      final speedLabel = settings['speed_label'] as String? ?? '中';
+      final accentRaw = settings['accent'] as String? ?? 'US';
+      final loopEnabled = settings['loop_enabled'] as bool? ?? false;
+
+      // 转换发音设置
+      String accent;
+      switch (accentRaw) {
+        case 'US':
+          accent = '美式';
+          break;
+        case 'GB':
+          accent = '英式';
+          break;
+        default:
+          accent = '默认';
+      }
+
+      state = state.copyWith(
+        speedLabel: speedLabel,
+        accent: accent,
+        loopEnabled: loopEnabled,
+      );
+
+      // 更新 TTS 参数
+      await _ttsService.setSpeechRate(state.speechRate);
+      await _ttsService.setLanguage(state.languageCode);
+
+      debugPrint('[ReadingNotifier] 用户设置已加载: speed=$speedLabel, accent=$accent, loop=$loopEnabled');
+    } catch (e) {
+      debugPrint('[ReadingNotifier] 加载用户设置失败: $e');
+    }
+  }
+
+  /// TTS 状态变化回调
+  void _onTtsStateChanged() {
+    debugPrint('[ReadingNotifier] TTS 状态变化: ${_ttsService.state}');
+    // 当 TTS 变为 idle 状态时，更新 isPlaying 为 false
+    if (_ttsService.state == TtsState.idle && state.isPlaying) {
+      debugPrint('[ReadingNotifier] TTS 播放完成，更新 isPlaying = false');
+      state = state.copyWith(isPlaying: false);
+
+      // 循环播放：自动播放下一个句子
+      if (state.loopEnabled) {
+        _playNextSentence();
+      }
+    }
+  }
+
+  /// 循环播放下一个句子
+  void _playNextSentence() {
+    final sentences = state.currentSentences;
+    if (sentences.isEmpty) return;
+
+    // 找到当前活跃句子的索引
+    final currentIndex = sentences.indexWhere((s) => s.id == state.activeSentenceId);
+
+    // 如果是最后一个句子，回到第一个；否则播放下一个
+    final nextIndex = (currentIndex + 1) % sentences.length;
+    final nextSentence = sentences[nextIndex];
+
+    debugPrint('[ReadingNotifier] 循环播放下一个句子: ${nextSentence.en}');
+    playSentence(nextSentence);
+  }
 
   /// ========================================
   /// 开始阅读（从书架点击进入）
@@ -339,6 +424,31 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
       activeSentenceId: sentences.isNotEmpty ? sentences.first.id : null,
     );
     debugPrint('[goToPage] 状态已更新: currentPage=${state.currentPage}');
+
+    // 同步阅读进度到后端
+    await _syncProgress(pageIndex);
+  }
+
+  /// 同步阅读进度
+  Future<void> _syncProgress(int currentPage) async {
+    if (state.currentBook == null) return;
+
+    try {
+      final bookId = state.currentBook!.id;
+      final totalPages = state.totalPages;
+
+      // 更新进度
+      await readingApi.updateProgress(bookId, currentPage: currentPage + 1);
+      debugPrint('[_syncProgress] 进度已同步: ${currentPage + 1}/$totalPages');
+
+      // 如果是最后一页，标记完成
+      if (currentPage >= totalPages - 1) {
+        await readingApi.markCompleted(bookId);
+        debugPrint('[_syncProgress] 绘本已标记完成');
+      }
+    } catch (e) {
+      debugPrint('[_syncProgress] 同步进度失败: $e');
+    }
   }
 
   /// ========================================
@@ -384,35 +494,71 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
   /// ========================================
   /// 设置朗读速度
   /// ========================================
-  void setSpeed(String speedLabel) {
+  Future<void> setSpeed(String speedLabel) async {
     state = state.copyWith(speedLabel: speedLabel);
     // 更新 TTS 语速
     _ttsService.setSpeechRate(state.speechRate);
+    // 持久化到后端
+    try {
+      await usersApi.updateSettings(speedLabel: speedLabel);
+      debugPrint('[setSpeed] 语速已保存: $speedLabel');
+    } catch (e) {
+      debugPrint('[setSpeed] 保存语速失败: $e');
+    }
   }
 
   /// ========================================
   /// 设置发音偏好
   /// ========================================
-  void setAccent(String accent) {
+  Future<void> setAccent(String accent) async {
     state = state.copyWith(accent: accent);
     // 更新 TTS 语言
     _ttsService.setLanguage(state.languageCode);
+    // 持久化到后端
+    try {
+      await usersApi.updateSettings(accent: accent == '美式' ? 'US' : (accent == '英式' ? 'GB' : 'DEFAULT'));
+      debugPrint('[setAccent] 发音已保存: $accent');
+    } catch (e) {
+      debugPrint('[setAccent] 保存发音失败: $e');
+    }
+  }
+
+  /// ========================================
+  /// 切换循环播放
+  /// ========================================
+  Future<void> toggleLoop() async {
+    final newLoopEnabled = !state.loopEnabled;
+    state = state.copyWith(loopEnabled: newLoopEnabled);
+    debugPrint('[toggleLoop] 循环播放: $newLoopEnabled');
+    // 持久化到后端
+    try {
+      await usersApi.updateSettings(loopEnabled: newLoopEnabled);
+      debugPrint('[toggleLoop] 循环设置已保存: $newLoopEnabled');
+    } catch (e) {
+      debugPrint('[toggleLoop] 保存循环设置失败: $e');
+    }
   }
 
   /// ========================================
   /// 播放句子
   /// ========================================
-  Future<void> playSentence(Sentence sentence) async {
+  Future<bool> playSentence(Sentence sentence) async {
+    debugPrint('[playSentence] 开始播放: ${sentence.en}');
+    debugPrint('[playSentence] 语速: ${state.speechRate}, 语言: ${state.languageCode}');
+
     await _ttsService.init();
+    _ttsService.clearError();
 
     // 停止当前播放
     if (_ttsService.isPlaying) {
       await _ttsService.stop();
+      await Future.delayed(const Duration(milliseconds: 100));
     }
 
-    // 设置当前语速和语言
+    // 强制设置语速和语言（每次播放前）
     await _ttsService.setSpeechRate(state.speechRate);
     await _ttsService.setLanguage(state.languageCode);
+    debugPrint('[playSentence] TTS 参数已设置');
 
     // 设置活跃句子
     state = state.copyWith(
@@ -423,8 +569,15 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
     // 开始播放
     final success = await _ttsService.speak(sentence.en);
     if (!success) {
-      state = state.copyWith(isPlaying: false);
+      final errorMsg = _ttsService.lastError ?? '播放失败';
+      debugPrint('[playSentence] 播放失败: $errorMsg');
+      state = state.copyWith(
+        isPlaying: false,
+        error: errorMsg,
+      );
+      return false;
     }
+    return true;
   }
 
   /// ========================================
@@ -459,12 +612,31 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
   /// ========================================
   /// 切换播放/暂停
   /// ========================================
-  Future<void> togglePlayPause(Sentence sentence) async {
+  Future<bool> togglePlayPause(Sentence sentence) async {
     if (state.isPlaying && state.activeSentenceId == sentence.id) {
       await pauseSentence();
+      return true;
     } else {
-      await playSentence(sentence);
+      return await playSentence(sentence);
     }
+  }
+
+  /// ========================================
+  /// 更新当前书籍标题（编辑绘本名称时调用）
+  /// ========================================
+  void updateCurrentBookTitle(String newTitle) {
+    if (state.currentBook == null) return;
+
+    final updatedBook = state.currentBook!.copyWith(title: newTitle);
+    state = state.copyWith(currentBook: updatedBook);
+
+    // 同时更新 bookDetail 的标题
+    if (state.bookDetail != null) {
+      final updatedBookDetail = state.bookDetail!.copyWith(title: newTitle);
+      state = state.copyWith(bookDetail: updatedBookDetail);
+    }
+
+    debugPrint('[updateCurrentBookTitle] 标题已更新: $newTitle');
   }
 
   /// ========================================
@@ -473,6 +645,65 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
   Future<void> stopReading() async {
     await _ttsService.stop();
     state = const ReadingState();
+  }
+
+  /// ========================================
+  /// 更新句子文本
+  /// ========================================
+  Future<bool> updateSentence(String sentenceId, String newText) async {
+    if (state.currentBook == null) return false;
+
+    try {
+      debugPrint('[updateSentence] 更新句子: $sentenceId -> $newText');
+
+      // 调用 API 更新
+      await booksApi.updateSentence(
+        bookId: state.currentBook!.id,
+        sentenceId: sentenceId,
+        text: newText,
+      );
+
+      // 更新本地缓存
+      final updatedPages = Map<int, BookPage>.from(state.loadedPages);
+      for (final entry in updatedPages.entries) {
+        final page = entry.value;
+        final sentenceIndex = page.sentences.indexWhere((s) => s.id == sentenceId);
+        if (sentenceIndex != -1) {
+          final updatedSentences = List<Sentence>.from(page.sentences);
+          updatedSentences[sentenceIndex] = updatedSentences[sentenceIndex].copyWith(en: newText);
+          updatedPages[entry.key] = page.copyWith(sentences: updatedSentences);
+          break;
+        }
+      }
+
+      // 更新 bookDetail 中的句子
+      if (state.bookDetail != null) {
+        final updatedBookDetailPages = <BookPage>[];
+        for (final page in state.bookDetail!.pages) {
+          final sentenceIndex = page.sentences.indexWhere((s) => s.id == sentenceId);
+          if (sentenceIndex != -1) {
+            final updatedSentences = List<Sentence>.from(page.sentences);
+            updatedSentences[sentenceIndex] = updatedSentences[sentenceIndex].copyWith(en: newText);
+            updatedBookDetailPages.add(page.copyWith(sentences: updatedSentences));
+          } else {
+            updatedBookDetailPages.add(page);
+          }
+        }
+        state = state.copyWith(
+          loadedPages: updatedPages,
+          bookDetail: state.bookDetail!.copyWith(pages: updatedBookDetailPages),
+        );
+      } else {
+        state = state.copyWith(loadedPages: updatedPages);
+      }
+
+      debugPrint('[updateSentence] 句子更新成功');
+      return true;
+    } catch (e) {
+      debugPrint('[updateSentence] 更新失败: $e');
+      state = state.copyWith(error: '更新句子失败: $e');
+      return false;
+    }
   }
 
   /// ========================================

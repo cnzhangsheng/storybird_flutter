@@ -14,15 +14,50 @@ void _log(String message, [dynamic data]) {
   }
 }
 
-/// API configuration
-class ApiConfig {
-  // For Android emulator, use 10.0.2.2 to access localhost
-  // For iOS simulator, use localhost
-  // For web, use localhost
-  static const String baseUrl = String.fromEnvironment(
+/// ========================================
+/// 环境配置
+/// ========================================
+class Environment {
+  /// 当前环境类型
+  static const String environment = String.fromEnvironment(
+    'ENVIRONMENT',
+    defaultValue: 'development',
+  );
+
+  /// 是否为生产环境
+  static bool get isProduction => environment == 'production';
+
+  /// 是否为开发环境
+  static bool get isDevelopment => environment == 'development';
+
+  /// API 基础地址
+  static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'http://localhost:8000',
   );
+}
+
+/// API configuration
+class ApiConfig {
+  // 开发环境: localhost (Web) 或 10.0.2.2 (Android Emulator)
+  // 生产环境: 47.85.201.118:8000
+  static String get baseUrl {
+    // 如果通过环境变量指定了地址，直接使用
+    if (Environment.apiBaseUrl != 'http://localhost:8000') {
+      return Environment.apiBaseUrl;
+    }
+
+    // 开发环境下，根据平台自动选择
+    if (Environment.isDevelopment) {
+      if (kIsWeb) {
+        return 'http://localhost:8000';
+      }
+      // Android 模拟器需要使用 10.0.2.2 访问宿主机
+      return 'http://10.0.2.2:8000';
+    }
+
+    return Environment.apiBaseUrl;
+  }
 
   static const Duration timeoutDuration = Duration(seconds: 30);
 }
@@ -348,6 +383,17 @@ class BooksApi {
       'title': title,
       'images': images,
       'level': level,
+    });
+  }
+
+  /// Update sentence text
+  Future<Map<String, dynamic>> updateSentence({
+    required String bookId,
+    required String sentenceId,
+    required String text,
+  }) async {
+    return _client.put('/books/$bookId/sentences/$sentenceId', auth: true, body: {
+      'text': text,
     });
   }
 }

@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:storybird_flutter/core/theme/app_colors.dart';
 import 'package:storybird_flutter/models/sentence.dart';
+import 'package:storybird_flutter/providers/books_provider.dart';
 import 'package:storybird_flutter/providers/reading_provider.dart';
+import 'package:storybird_flutter/services/api_service.dart';
+import 'package:storybird_flutter/services/tts_service.dart';
 import 'package:storybird_flutter/widgets/reading/sentence_read_item.dart';
 
 /// ========================================
@@ -41,10 +45,22 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   @override
   void initState() {
     super.initState();
+    // 预初始化 TTS，确保用户点击播放按钮时引擎已就绪（解决 Android 小米手机 TTS 不工作问题）
+    _initTts();
     // 检查是否需要加载书籍
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadBookIfNeeded();
     });
+  }
+
+  /// 预初始化 TTS 服务
+  Future<void> _initTts() async {
+    await ttsService.init();
+    // 设置初始语言和语速
+    final readingState = ref.read(readingProvider);
+    await ttsService.setLanguage(readingState.languageCode);
+    await ttsService.setSpeechRate(readingState.speechRate);
+    debugPrint('[ReadingScreen] TTS 预初始化完成');
   }
 
   /// 检查并加载书籍（如果当前没有加载或 bookId 不同）
@@ -290,9 +306,545 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
               ],
             ),
           ),
+
+          const SizedBox(width: 8),
+
+          // 调试按钮
+          GestureDetector(
+            onTap: () => _showTtsDebugDialog(context),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.orange.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                LucideIcons.bug,
+                size: 20,
+                color: Colors.orange.shade700,
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // 更多按钮
+          GestureDetector(
+            onTap: () => _showReadingMenu(context),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                LucideIcons.moreVertical,
+                size: 20,
+                color: AppColors.onPrimaryFixed,
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  /// 显示 TTS 调试弹窗
+  void _showTtsDebugDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Icon(LucideIcons.bug, color: Colors.orange.shade700),
+            const SizedBox(width: 8),
+            const Text('TTS 调试日志'),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 480,
+          child: Column(
+            children: [
+              // 引擎信息（新增）
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  ttsService.getEnginesDebugInfo(),
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // 状态信息
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('状态: ${ttsService.state}'),
+                    Text('正在播放: ${ttsService.isPlaying}'),
+                    Text('当前文本: ${ttsService.currentText ?? "无"}'),
+                    if (ttsService.lastError != null)
+                      Text(
+                        '错误: ${ttsService.lastError}',
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // 打开设置按钮
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await ttsService.openTtsSettings();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('已打开 TTS 设置，配置后返回应用重试'),
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.settings),
+                label: const Text('打开系统 TTS 设置'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // 设置指南
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  ttsService.getTtsSetupGuide(),
+                  style: const TextStyle(fontSize: 11, color: Colors.black87),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // 日志区域
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      ttsService.debugLogsText.isEmpty
+                          ? '暂无日志'
+                          : ttsService.debugLogsText,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              ttsService.clearDebugLogs();
+              Navigator.pop(dialogContext);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('日志已清除')),
+              );
+            },
+            child: const Text('清除日志'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: ttsService.debugLogsText));
+              Navigator.pop(dialogContext);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('日志已复制到剪贴板')),
+              );
+            },
+            child: const Text('复制日志'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 显示阅读页菜单
+  void _showReadingMenu(BuildContext context) {
+    final book = ref.read(readingProvider).currentBook;
+    if (book == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 顶部拖拽指示条
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // 编辑按钮
+            _buildMenuButton(
+              icon: LucideIcons.pencil,
+              label: '编辑绘本',
+              color: AppColors.primaryContainer,
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _showEditTitleDialog(context, book);
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            // 删除按钮
+            _buildMenuButton(
+              icon: LucideIcons.trash2,
+              label: '删除绘本',
+              color: AppColors.error,
+              onTap: () async {
+                Navigator.pop(sheetContext);
+
+                // 显示删除确认
+                final confirmed = await showDeleteConfirm(book);
+                if (confirmed && context.mounted) {
+                  context.go('/home');
+                }
+              },
+            ),
+
+            const SizedBox(height: 24),
+
+            // 取消按钮
+            GestureDetector(
+              onTap: () => Navigator.pop(sheetContext),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  '取消',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 菜单按钮
+  Widget _buildMenuButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, size: 22, color: color),
+            ),
+            const SizedBox(width: 16),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+            const Spacer(),
+            Icon(
+              LucideIcons.chevronRight,
+              size: 20,
+              color: color.withValues(alpha: 0.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 显示编辑标题对话框
+  void _showEditTitleDialog(BuildContext context, dynamic book) {
+    final controller = TextEditingController(text: book.title);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        title: const Text(
+          '编辑绘本名称',
+          style: TextStyle(
+            fontFamily: 'PlusJakartaSans',
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: '请输入绘本名称',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(
+              '取消',
+              style: TextStyle(color: AppColors.onSurfaceVariant),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newTitle = controller.text.trim();
+              if (newTitle.isEmpty) return;
+
+              Navigator.pop(dialogContext);
+
+              // 更新绘本
+              final updatedBook = book.copyWith(title: newTitle);
+              await ref.read(booksProvider.notifier).updateBook(updatedBook);
+
+              // 同步更新阅读页的标题
+              ref.read(readingProvider.notifier).updateCurrentBookTitle(newTitle);
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('绘本名称已更新'),
+                    backgroundColor: AppColors.primaryContainer,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryContainer,
+              foregroundColor: AppColors.onPrimaryContainer,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 显示删除确认并执行删除
+  Future<bool> showDeleteConfirm(dynamic book) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.4),
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: 320,
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(32),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 图标
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: AppColors.errorContainer.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(40),
+                ),
+                child: Icon(
+                  LucideIcons.trash2,
+                  size: 36,
+                  color: AppColors.error.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                '确定要删除绘本吗？',
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.onPrimaryFixed,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '《${book.title}》',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryContainer,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '删除后绘本将永远消失，无法恢复',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(dialogContext, false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryContainer,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Text(
+                          '取消',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(dialogContext, true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: AppColors.errorContainer.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: AppColors.error.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Text(
+                          '删除',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      await ref.read(booksProvider.notifier).removeBook(book.id);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('《${book.title}》已删除'),
+            backgroundColor: AppColors.onSurfaceVariant,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
+
+    return confirmed == true;
   }
 
   /// ========================================
@@ -520,7 +1072,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     // 网络图片
     final fullUrl = imageUrl.startsWith('http')
         ? imageUrl
-        : 'http://localhost:8000$imageUrl';
+        : '${ApiConfig.baseUrl}$imageUrl';
 
     return NetworkImage(fullUrl) as ImageProvider;
   }
@@ -612,6 +1164,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     final showTranslation = ref.watch(readingProvider).showTranslation;
     final speedLabel = ref.watch(readingProvider).speedLabel;
     final accent = ref.watch(readingProvider).accent;
+    final loopEnabled = ref.watch(readingProvider).loopEnabled;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
@@ -669,6 +1222,32 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
 
           const Spacer(),
 
+          // 循环播放按钮
+          GestureDetector(
+            onTap: () {
+              ref.read(readingProvider.notifier).toggleLoop();
+            },
+            child: Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: loopEnabled
+                    ? AppColors.tertiaryContainer
+                    : AppColors.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                LucideIcons.repeat,
+                size: 14,
+                color: loopEnabled
+                    ? AppColors.onTertiaryContainer
+                    : AppColors.onSurfaceVariant,
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 6),
+
           // 发音选择器（紧凑）
           _buildCompactAccentSelector(accent),
 
@@ -683,6 +1262,31 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
 
   /// 紧凑发音选择器
   Widget _buildCompactAccentSelector(String currentAccent) {
+    // 获取可用的发音选项
+    final availableAccents = ref.read(readingProvider).availableAccents;
+
+    // 如果没有可用选项，显示提示
+    if (availableAccents.isEmpty) {
+      return Container(
+        height: 26,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(
+          child: Text(
+            '英语',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       height: 26,
       decoration: BoxDecoration(
@@ -691,7 +1295,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: ['美式', '英式'].map((accent) {
+        children: availableAccents.map((accent) {
           final isSelected = currentAccent == accent;
           return GestureDetector(
             onTap: () {
@@ -760,9 +1364,37 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   }
 
   /// 编辑句子回调
-  void _onSentenceEdit(Sentence original, String newText) {
-    // TODO: 调用API更新句子
+  Future<void> _onSentenceEdit(Sentence original, String newText) async {
     debugPrint('编辑句子: ${original.id} -> $newText');
+
+    // 调用 API 更新句子
+    final success = await ref.read(readingProvider.notifier).updateSentence(original.id, newText);
+
+    if (!success && mounted) {
+      // 显示错误提示
+      final readingState = ref.read(readingProvider);
+      if (readingState.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(readingState.error!),
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        ref.read(readingProvider.notifier).clearError();
+      }
+    } else if (mounted && success) {
+      // 显示成功提示
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('句子已更新'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   /// ========================================

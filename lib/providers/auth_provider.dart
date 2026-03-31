@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:storybird_flutter/models/user_profile.dart';
 import 'package:storybird_flutter/services/api_service.dart' show authApi, ApiException;
@@ -118,6 +119,59 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // Ignore errors on logout
     }
     state = const AuthState();
+  }
+
+  /// 免登录模式：使用测试账号登录
+  Future<bool> devLogin() async {
+    state = state.copyWith(isLoading: true);
+    try {
+      // 使用测试账号 13800000000 和验证码 123456
+      const phone = '13800000000';
+      const code = '123456';
+
+      debugPrint('[devLogin] 开始登录: phone=$phone');
+
+      // 先发送验证码
+      try {
+        await authApi.sendCode(phone);
+        debugPrint('[devLogin] 验证码已发送');
+      } catch (e) {
+        debugPrint('[devLogin] 发送验证码失败（继续尝试登录）: $e');
+      }
+
+      // 使用验证码登录
+      debugPrint('[devLogin] 尝试验证登录: code=$code');
+      final response = await authApi.verifyCode(phone, code);
+      debugPrint('[devLogin] 登录响应: $response');
+
+      final user = UserProfile.fromJson(response['user']);
+      debugPrint('[devLogin] 用户信息: id=${user.id}, name=${user.name}');
+
+      state = AuthState(
+        isLoggedIn: true,
+        isLoading: false,
+        user: user,
+      );
+      return true;
+    } on ApiException catch (e) {
+      debugPrint('[devLogin] 登录失败: ${e.message}, code=${e.errorCode}');
+      // 如果登录失败，使用 Mock 用户
+      state = AuthState(
+        isLoggedIn: true,
+        isLoading: false,
+        user: MockUserProfile.profile,
+      );
+      return true;
+    } catch (e) {
+      debugPrint('[devLogin] 异常: $e');
+      // 使用 Mock 用户
+      state = AuthState(
+        isLoggedIn: true,
+        isLoading: false,
+        user: MockUserProfile.profile,
+      );
+      return true;
+    }
   }
 
   /// Login (for development mode - bypasses verification)

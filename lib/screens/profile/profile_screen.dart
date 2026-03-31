@@ -482,7 +482,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           description: '管理孩子账户与设置',
           color: AppColors.tertiaryContainer,
           bgColor: AppColors.tertiaryContainer.withValues(alpha: 0.08),
-          onTap: () {},
+          onTap: () => context.push('/profile/parental'),
         ),
 
         const SizedBox(height: 16),
@@ -493,7 +493,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           description: '遇到问题？联系我们',
           color: AppColors.primaryContainer,
           bgColor: AppColors.primaryContainer.withValues(alpha: 0.08),
-          onTap: () {},
+          onTap: () => context.push('/profile/help'),
         ),
 
         const SizedBox(height: 16),

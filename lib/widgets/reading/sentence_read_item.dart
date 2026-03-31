@@ -74,10 +74,36 @@ class _SentenceReadItemState extends ConsumerState<SentenceReadItem> {
   void initState() {
     super.initState();
     _editController = TextEditingController(text: widget.sentence.en);
+    // 添加 TTS 状态监听
+    ttsService.addStateCallback(_onTtsStateChanged);
+  }
+
+  /// TTS 状态变化回调
+  void _onTtsStateChanged() {
+    if (!mounted) return;
+
+    final readingState = ref.read(readingProvider);
+    final ttsState = ttsService.state;
+
+    debugPrint('[SentenceReadItem] TTS状态变化: $ttsState, isPlaying: ${readingState.isPlaying}');
+
+    // 如果当前句子是活跃句子，同步播放状态
+    if (widget.isActive) {
+      setState(() {
+        if (ttsState == TtsState.idle || !readingState.isPlaying) {
+          _playState = SentencePlayState.idle;
+        } else if (ttsState == TtsState.playing) {
+          _playState = SentencePlayState.playing;
+        } else if (ttsState == TtsState.paused) {
+          _playState = SentencePlayState.paused;
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    ttsService.removeStateCallback(_onTtsStateChanged);
     _editController.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -329,37 +355,44 @@ class _SentenceReadItemState extends ConsumerState<SentenceReadItem> {
   Future<void> _onPlayTap() async {
     if (_isEditing) return;
 
+    // 立即显示播放状态
+    setState(() {
+      _playState = SentencePlayState.playing;
+    });
+
     // 设置为活跃句子
     ref.read(readingProvider.notifier).setActiveSentence(widget.sentence.id);
 
-    // 切换播放状态
-    await ttsService.togglePlayPause(widget.sentence.en);
+    // 通过 provider 切换播放状态
+    final success = await ref.read(readingProvider.notifier).togglePlayPause(widget.sentence);
 
     // 更新本地状态
-    setState(() {
-      if (ttsService.isPlaying) {
-        _playState = SentencePlayState.playing;
-      } else if (ttsService.isPaused) {
-        _playState = SentencePlayState.paused;
-      } else {
-        _playState = SentencePlayState.idle;
-      }
-    });
+    if (mounted) {
+      setState(() {
+        final readingState = ref.read(readingProvider);
+        if (success && readingState.isPlaying) {
+          _playState = SentencePlayState.playing;
+        } else {
+          _playState = SentencePlayState.idle;
+        }
+      });
 
-    // 监听 TTS 状态变化
-    ttsService.onStateChanged = () {
-      if (mounted) {
-        setState(() {
-          if (ttsService.isPlaying) {
-            _playState = SentencePlayState.playing;
-          } else if (ttsService.isPaused) {
-            _playState = SentencePlayState.paused;
-          } else {
-            _playState = SentencePlayState.idle;
-          }
-        });
+      // 播放失败时显示错误提示
+      if (!success) {
+        final readingState = ref.read(readingProvider);
+        if (readingState.error != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(readingState.error!),
+              backgroundColor: Colors.red.shade400,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          ref.read(readingProvider.notifier).clearError();
+        }
       }
-    };
+    }
   }
 
   /// ========================================

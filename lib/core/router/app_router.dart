@@ -7,6 +7,8 @@ import 'package:storybird_flutter/screens/create/image_preview_screen.dart';
 import 'package:storybird_flutter/screens/home/home_screen.dart';
 import 'package:storybird_flutter/screens/login/login_screen.dart';
 import 'package:storybird_flutter/screens/profile/profile_screen.dart';
+import 'package:storybird_flutter/screens/profile/parental_control_screen.dart';
+import 'package:storybird_flutter/screens/profile/help_feedback_screen.dart';
 import 'package:storybird_flutter/screens/reading/reading_screen.dart';
 import 'package:storybird_flutter/providers/create_provider.dart';
 
@@ -15,16 +17,18 @@ final routerProvider = Provider<GoRouter>((ref) {
   final isLoggedIn = ref.watch(isLoggedInProvider);
 
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/home',
     redirect: (context, state) {
       final isLoggingIn = state.matchedLocation == '/login';
 
-      if (!isLoggedIn && !isLoggingIn) {
-        return '/login';
-      }
-
+      // 如果已登录且在登录页，重定向到首页
       if (isLoggedIn && isLoggingIn) {
         return '/home';
+      }
+
+      // 如果未登录且不在登录页，重定向到登录页
+      if (!isLoggedIn && !isLoggingIn) {
+        return '/login';
       }
 
       return null;
@@ -69,6 +73,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/profile',
         name: 'profile',
         builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: '/profile/parental',
+        name: 'parental-control',
+        builder: (context, state) => const ParentalControlScreen(),
+      ),
+      GoRoute(
+        path: '/profile/help',
+        name: 'help-feedback',
+        builder: (context, state) => const HelpFeedbackScreen(),
       ),
       GoRoute(
         path: '/reading/:bookId',

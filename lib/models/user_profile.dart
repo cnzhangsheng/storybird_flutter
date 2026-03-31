@@ -2,6 +2,7 @@
 class UserProfile {
   final String id;
   final String name;
+  final String? phone;
   final String? avatar;
   final int level;
   final int booksRead;
@@ -11,6 +12,7 @@ class UserProfile {
   const UserProfile({
     required this.id,
     required this.name,
+    this.phone,
     this.avatar,
     required this.level,
     required this.booksRead,
@@ -21,6 +23,7 @@ class UserProfile {
   UserProfile copyWith({
     String? id,
     String? name,
+    String? phone,
     String? avatar,
     int? level,
     int? booksRead,
@@ -30,6 +33,7 @@ class UserProfile {
     return UserProfile(
       id: id ?? this.id,
       name: name ?? this.name,
+      phone: phone ?? this.phone,
       avatar: avatar ?? this.avatar,
       level: level ?? this.level,
       booksRead: booksRead ?? this.booksRead,
@@ -42,6 +46,7 @@ class UserProfile {
     return {
       'id': id,
       'name': name,
+      'phone': phone,
       'avatar': avatar,
       'level': level,
       'books_read': booksRead,
@@ -54,6 +59,7 @@ class UserProfile {
     return UserProfile(
       id: json['id'] as String,
       name: json['name'] as String,
+      phone: json['phone'] as String?,
       avatar: json['avatar'] as String?,
       level: json['level'] as int? ?? 1,
       booksRead: json['books_read'] as int? ?? 0,
@@ -63,13 +69,14 @@ class UserProfile {
   }
 }
 
-/// Mock user profile for development
+/// Mock user profile for development (免登录模式)
 class MockUserProfile {
   MockUserProfile._();
 
   static final UserProfile profile = UserProfile(
     id: '1',
     name: 'Lily 小象',
+    phone: '13800000000',
     avatar: 'assets/images/avatar_lily.png',
     level: 3,
     booksRead: 12,

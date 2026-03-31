@@ -5,6 +5,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:storybird_flutter/core/theme/app_colors.dart';
 import 'package:storybird_flutter/core/utils/bookshelf_sizer.dart';
 import 'package:storybird_flutter/models/book.dart';
+import 'package:storybird_flutter/services/api_service.dart';
 
 /// ========================================
 /// 绘本封面组件
@@ -16,6 +17,7 @@ import 'package:storybird_flutter/models/book.dart';
 /// - 骨架屏加载动画
 /// - 加载失败显示默认绘本图标
 /// - 点击跳转详情页
+/// - 长按触发操作菜单
 /// ========================================
 class BookCoverItem extends StatelessWidget {
   /// 绘本数据
@@ -23,6 +25,9 @@ class BookCoverItem extends StatelessWidget {
 
   /// 点击回调
   final VoidCallback onTap;
+
+  /// 长按回调（触发操作菜单）
+  final VoidCallback? onLongPress;
 
   /// 封面宽度（可选，默认自动计算）
   final double? width;
@@ -37,6 +42,7 @@ class BookCoverItem extends StatelessWidget {
     super.key,
     required this.book,
     required this.onTap,
+    this.onLongPress,
     this.width,
     this.height,
     this.borderRadius = 12.0,
@@ -46,6 +52,7 @@ class BookCoverItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -161,7 +168,7 @@ class _BookCoverImage extends StatelessWidget {
   String _getFullUrl(String url) {
     if (url.startsWith('http')) return url;
     // 拼接后端静态资源地址
-    return 'http://localhost:8000$url';
+    return '${ApiConfig.baseUrl}$url';
   }
 
   /// 骨架屏占位
@@ -341,6 +348,7 @@ class BookCoverSkeleton extends StatelessWidget {
 /// - 动态尺寸计算
 /// - 横竖屏自动刷新
 /// - 刘海屏/折叠屏适配
+/// - 长按触发操作菜单
 /// ========================================
 class BookshelfGrid extends StatefulWidget {
   /// 绘本列表
@@ -348,6 +356,9 @@ class BookshelfGrid extends StatefulWidget {
 
   /// 点击绘本回调
   final ValueChanged<Book> onBookTap;
+
+  /// 长按绘本回调（触发操作菜单）
+  final ValueChanged<Book>? onBookLongPress;
 
   /// 是否显示骨架屏
   final bool isLoading;
@@ -359,6 +370,7 @@ class BookshelfGrid extends StatefulWidget {
     super.key,
     required this.books,
     required this.onBookTap,
+    this.onBookLongPress,
     this.isLoading = false,
     this.skeletonCount = 6,
   });
@@ -403,6 +415,9 @@ class _BookshelfGridState extends State<BookshelfGrid> {
             return BookCoverItem(
               book: book,
               onTap: () => widget.onBookTap(book),
+              onLongPress: widget.onBookLongPress != null
+                  ? () => widget.onBookLongPress!(book)
+                  : null,
             );
           },
         );

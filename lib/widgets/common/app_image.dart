@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:storybird_flutter/services/api_service.dart';
 
 /// A universal image widget that handles both local assets and network images
 class AppImage extends StatelessWidget {
@@ -22,6 +23,14 @@ class AppImage extends StatelessWidget {
 
   bool get isLocalAsset => image != null && image!.startsWith('assets/');
   bool get hasImage => image != null && image!.isNotEmpty;
+
+  /// 获取完整的图片URL
+  String _getFullUrl(String url) {
+    if (url.startsWith('http')) return url;
+    if (url.startsWith('assets/')) return url;
+    // 拼接后端静态资源地址
+    return '${ApiConfig.baseUrl}$url';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +59,7 @@ class AppImage extends StatelessWidget {
     }
 
     return CachedNetworkImage(
-      imageUrl: image!,
+      imageUrl: _getFullUrl(image!),
       fit: fit,
       width: width,
       height: height,

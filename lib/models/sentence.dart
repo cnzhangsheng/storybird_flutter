@@ -82,6 +82,25 @@ class BookPage {
     this.createdAt,
   });
 
+  /// 复制并修改
+  BookPage copyWith({
+    String? id,
+    String? bookId,
+    int? pageNumber,
+    String? imageUrl,
+    List<Sentence>? sentences,
+    DateTime? createdAt,
+  }) {
+    return BookPage(
+      id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
+      pageNumber: pageNumber ?? this.pageNumber,
+      imageUrl: imageUrl ?? this.imageUrl,
+      sentences: sentences ?? this.sentences,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   factory BookPage.fromJson(Map<String, dynamic> json) {
     final sentences = <Sentence>[];
     if (json['sentences'] is List) {
@@ -149,6 +168,37 @@ class BookDetail {
 
   /// 总页数
   int get totalPages => pages.length;
+
+  /// 复制并修改部分字段
+  BookDetail copyWith({
+    String? id,
+    String? userId,
+    String? title,
+    int? level,
+    int? progress,
+    String? coverImage,
+    bool? isNew,
+    bool? hasAudio,
+    String? status,
+    List<BookPage>? pages,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return BookDetail(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      title: title ?? this.title,
+      level: level ?? this.level,
+      progress: progress ?? this.progress,
+      coverImage: coverImage ?? this.coverImage,
+      isNew: isNew ?? this.isNew,
+      hasAudio: hasAudio ?? this.hasAudio,
+      status: status ?? this.status,
+      pages: pages ?? this.pages,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 
   factory BookDetail.fromJson(Map<String, dynamic> json) {
     final pages = <BookPage>[];

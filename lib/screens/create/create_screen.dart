@@ -105,7 +105,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     final bookId = await ref.read(createProvider.notifier).generateBook(title);
 
     if (bookId != null && mounted) {
-      // 跳转到阅读页面
       context.go('/reading/$bookId');
     }
   }
@@ -144,7 +143,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     final progress = ref.watch(generateProgressProvider);
     final error = ref.watch(createProvider).error;
 
-    // 监听错误
     if (error != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showErrorSnackBar(error);
@@ -164,33 +162,19 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 标题
             _buildHeader(),
             const SizedBox(height: 32),
-
-            // 书名输入
             _buildTitleInput(),
             const SizedBox(height: 24),
-
-            // 封面上传
             _buildCoverUpload(coverImage),
             const SizedBox(height: 24),
-
-            // 上传按钮（内页）
             if (images.isEmpty) _buildUploadButtons(),
             SizedBox(height: images.isEmpty ? 0 : 16),
-
-            // 图片列表（可拖动）
-            if (images.isNotEmpty) _buildImageList(images),
+            if (images.isNotEmpty) _buildImageGrid(images),
             const SizedBox(height: 24),
-
-            // 提示
             if (images.isNotEmpty) _buildTipsCard(),
             const SizedBox(height: 24),
-
-            // 生成按钮
-            if (images.isNotEmpty && !isGenerating)
-              _buildGenerateButton(images),
+            if (images.isNotEmpty && !isGenerating) _buildGenerateButton(images),
             if (isGenerating) _buildProgressCard(progress),
           ],
         ),
@@ -199,44 +183,27 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   }
 
   Widget _buildHeader() {
-    return Stack(
-      clipBehavior: Clip.none,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Positioned(
-          top: -24,
-          right: -16,
-          child: Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: AppColors.tertiaryContainer.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(40),
-            ),
+        const Text(
+          '创作新绘本',
+          style: TextStyle(
+            fontFamily: 'PlusJakartaSans',
+            fontSize: 24,
+            fontWeight: FontWeight.w900,
+            color: AppColors.onPrimaryFixed,
           ),
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '创作新绘本',
-              style: TextStyle(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-                color: AppColors.onPrimaryFixed,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '上传绘本照片，生成朗读绘本',
-              style: TextStyle(
-                fontFamily: 'BeVietnamPro',
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: AppColors.onSurfaceVariant,
-              ),
-            ),
-          ],
+        const SizedBox(height: 4),
+        Text(
+          '上传绘本照片，生成朗读绘本',
+          style: TextStyle(
+            fontFamily: 'BeVietnamPro',
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppColors.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -332,7 +299,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           ),
           const SizedBox(height: 12),
           if (coverImage == null)
-            // 未选择封面时显示上传按钮（3:4 比例）
             GestureDetector(
               onTap: _pickCoverImage,
               child: AspectRatio(
@@ -345,7 +311,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                     border: Border.all(
                       color: AppColors.tertiaryContainer.withValues(alpha: 0.3),
                       width: 2,
-                      style: BorderStyle.solid,
                     ),
                   ),
                   child: Column(
@@ -364,21 +329,12 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                           color: AppColors.onSurfaceVariant,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '建议使用 3:4 比例图片',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
-                        ),
-                      ),
                     ],
                   ),
                 ),
               ),
             )
           else
-            // 已选择封面时显示预览（3:4 比例）
             AspectRatio(
               aspectRatio: 3 / 4,
               child: Stack(
@@ -388,28 +344,14 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(10),
                       child: kIsWeb
-                          ? Image.memory(
-                              coverImage.bytes!,
-                              fit: BoxFit.cover,
-                            )
-                          : Image.file(
-                              File(coverImage.path),
-                              fit: BoxFit.cover,
-                            ),
+                          ? Image.memory(coverImage.bytes!, fit: BoxFit.cover)
+                          : Image.file(File(coverImage.path), fit: BoxFit.cover),
                     ),
                   ),
-                  // 删除按钮
                   Positioned(
                     right: 8,
                     top: 8,
@@ -424,15 +366,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                           color: AppColors.error,
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Icon(
-                          LucideIcons.x,
-                          size: 18,
-                          color: Colors.white,
-                        ),
+                        child: const Icon(LucideIcons.x, size: 18, color: Colors.white),
                       ),
                     ),
                   ),
-                  // 封面标签
                   Positioned(
                     left: 8,
                     bottom: 8,
@@ -445,20 +382,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            LucideIcons.bookOpen,
-                            size: 14,
-                            color: Colors.white,
-                          ),
+                          Icon(LucideIcons.bookOpen, size: 14, color: Colors.white),
                           SizedBox(width: 4),
-                          Text(
-                            '封面',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
+                          Text('封面', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
                         ],
                       ),
                     ),
@@ -483,13 +409,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             color: AppColors.tertiaryContainer.withValues(alpha: 0.3),
             width: 2,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.tertiaryContainer.withValues(alpha: 0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
         child: Column(
           children: [
@@ -525,7 +444,8 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     );
   }
 
-  Widget _buildImageList(List<SelectedImage> images) {
+  /// 图片网格（支持拖拽排序）
+  Widget _buildImageGrid(List<SelectedImage> images) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -555,14 +475,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                       children: [
                         Icon(LucideIcons.plus, size: 16, color: Colors.white),
                         SizedBox(width: 4),
-                        Text(
-                          '添加',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
+                        Text('添加', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
                       ],
                     ),
                   ),
@@ -581,14 +494,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                       children: [
                         Icon(LucideIcons.trash2, size: 16, color: AppColors.error),
                         SizedBox(width: 4),
-                        Text(
-                          '清空',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.error,
-                          ),
-                        ),
+                        Text('清空', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.error)),
                       ],
                     ),
                   ),
@@ -599,130 +505,18 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
         ),
         const SizedBox(height: 16),
 
-        // 图片网格（使用 GridView）
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1,
-          ),
-          itemCount: images.length,
-          itemBuilder: (context, index) {
-            return _buildImageItem(images[index], index);
+        // 使用 GridView 布局，包装在可拖拽的 Widget 中
+        _DraggableImageGrid(
+          images: images,
+          onReorder: (oldIndex, newIndex) {
+            ref.read(createProvider.notifier).moveImage(oldIndex, newIndex);
+          },
+          onDelete: (index) {
+            ref.read(createProvider.notifier).removeImage(index);
           },
         ),
       ],
     );
-  }
-
-  Widget _buildImageItem(SelectedImage image, int index) {
-    return GestureDetector(
-      onLongPressStart: (details) {
-        _startDrag(index, details.globalPosition);
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // 图片
-              kIsWeb
-                  ? Image.memory(
-                      image.bytes!,
-                      fit: BoxFit.cover,
-                    )
-                  : Image.file(
-                      File(image.path),
-                      fit: BoxFit.cover,
-                    ),
-
-              // 页码标签
-              Positioned(
-                left: 8,
-                bottom: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '第${index + 1}页',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-
-              // 删除按钮
-              Positioned(
-                right: 4,
-                top: 4,
-                child: GestureDetector(
-                  onTap: () {
-                    ref.read(createProvider.notifier).removeImage(index);
-                  },
-                  child: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: AppColors.error,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      LucideIcons.x,
-                      size: 14,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-
-              // 拖动指示器
-              Positioned(
-                right: 4,
-                bottom: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Icon(
-                    LucideIcons.gripVertical,
-                    size: 14,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _startDrag(int index, Offset position) {
-    // 简化版本：暂时不实现拖拽，只显示提示
-    _showSnackBar('长按第${index + 1}张图片，拖拽功能开发中');
   }
 
   Widget _buildTipsCard() {
@@ -744,20 +538,13 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
               color: AppColors.primaryContainer,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(
-              LucideIcons.lightbulb,
-              size: 20,
-              color: AppColors.onPrimaryFixed,
-            ),
+            child: const Icon(LucideIcons.lightbulb, size: 20, color: AppColors.onPrimaryFixed),
           ),
           const SizedBox(width: 12),
           const Expanded(
             child: Text(
-              '拖动照片可以调整顺序',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.onPrimaryFixed,
-              ),
+              '长按照片可以拖动调整顺序',
+              style: TextStyle(fontSize: 14, color: AppColors.onPrimaryFixed),
             ),
           ),
         ],
@@ -787,10 +574,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             const SizedBox(width: 8),
             Text(
               images.isEmpty ? '请先上传照片' : '生成朗读绘本',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
             ),
           ],
         ),
@@ -814,7 +598,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       ),
       child: Column(
         children: [
-          // 进度指示器
           SizedBox(
             width: 80,
             height: 80,
@@ -829,11 +612,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                 Center(
                   child: Text(
                     '${progress.progress}%',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.onPrimaryFixed,
-                    ),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.onPrimaryFixed),
                   ),
                 ),
               ],
@@ -842,22 +621,174 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
           const SizedBox(height: 24),
           Text(
             progress.message,
-            style: const TextStyle(
-              fontFamily: 'PlusJakartaSans',
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
+            style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 16, fontWeight: FontWeight.w700),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
             '正在生成，请稍候...',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.onSurfaceVariant,
-            ),
+            style: TextStyle(fontSize: 14, color: AppColors.onSurfaceVariant),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// ========================================
+/// 可拖拽排序的图片网格组件
+/// 使用 Flutter 原生的 LongPressDraggable 实现
+/// ========================================
+class _DraggableImageGrid extends StatefulWidget {
+  final List<SelectedImage> images;
+  final void Function(int oldIndex, int newIndex) onReorder;
+  final void Function(int index) onDelete;
+
+  const _DraggableImageGrid({
+    required this.images,
+    required this.onReorder,
+    required this.onDelete,
+  });
+
+  @override
+  State<_DraggableImageGrid> createState() => _DraggableImageGridState();
+}
+
+class _DraggableImageGridState extends State<_DraggableImageGrid> {
+  int? _draggingIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: widget.images.asMap().entries.map((entry) {
+        final index = entry.key;
+        final image = entry.value;
+        final isDragging = _draggingIndex == index;
+
+        return LongPressDraggable<int>(
+          data: index,
+          onDragStarted: () {
+            setState(() {
+              _draggingIndex = index;
+            });
+          },
+          onDragEnd: (_) {
+            setState(() {
+              _draggingIndex = null;
+            });
+          },
+          feedback: Material(
+            elevation: 6,
+            borderRadius: BorderRadius.circular(12),
+            child: _buildImageItem(image, index, isDragging: true),
+          ),
+          childWhenDragging: Opacity(
+            opacity: 0.3,
+            child: _buildImageItem(image, index, isDragging: true),
+          ),
+          child: DragTarget<int>(
+            onWillAcceptWithDetails: (details) {
+              return details.data != index;
+            },
+            onAcceptWithDetails: (details) {
+              final fromIndex = details.data;
+              if (fromIndex != index) {
+                widget.onReorder(fromIndex, index);
+              }
+            },
+            builder: (context, candidateData, rejectedData) {
+              final isHovering = candidateData.isNotEmpty;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                transform: isHovering ? Matrix4.diagonal3Values(1.05, 1.05, 1.0) : Matrix4.identity(),
+                child: _buildImageItem(image, index, isDragging: isDragging),
+              );
+            },
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildImageItem(SelectedImage image, int index, {bool isDragging = false}) {
+    return Container(
+      width: (MediaQuery.of(context).size.width - 48 - 24) / 3, // 减去 padding 和间距
+      height: (MediaQuery.of(context).size.width - 48 - 24) / 3,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDragging ? AppColors.tertiaryContainer : Colors.white,
+          width: isDragging ? 3 : 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            kIsWeb
+                ? Image.memory(image.bytes!, fit: BoxFit.cover)
+                : Image.file(File(image.path), fit: BoxFit.cover),
+
+            // 页码标签
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '第${index + 1}页',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
+                ),
+              ),
+            ),
+
+            // 删除按钮
+            Positioned(
+              right: 4,
+              top: 4,
+              child: GestureDetector(
+                onTap: () => widget.onDelete(index),
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: AppColors.error,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(LucideIcons.x, size: 14, color: Colors.white),
+                ),
+              ),
+            ),
+
+            // 拖动指示器
+            Positioned(
+              right: 4,
+              bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Icon(LucideIcons.move, size: 14, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

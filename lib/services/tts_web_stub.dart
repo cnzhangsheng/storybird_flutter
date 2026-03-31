@@ -2,6 +2,7 @@
 /// This file is used when dart.library.js_interop is not available
 
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 
 Future<bool> speak({
   required String text,
