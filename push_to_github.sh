@@ -20,10 +20,7 @@ echo "=========================================="
 
 # 检查是否有更改
 if [ -z "$(git status --porcelain)" ]; then
-    echo "没有要提交的代码"
-    echo ""
-    echo "当前最新提交:"
-    git log --oneline -3
+    echo "没有需要提交的更改"
     exit 0
 fi
 
