@@ -393,7 +393,7 @@ class BooksApi {
     required String text,
   }) async {
     return _client.put('/books/$bookId/sentences/$sentenceId', auth: true, body: {
-      'text': text,
+      'en': text,  // 后端期望 'en' 字段
     });
   }
 

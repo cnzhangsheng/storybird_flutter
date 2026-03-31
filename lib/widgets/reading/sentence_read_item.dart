@@ -477,8 +477,12 @@ class _SentenceReadItemState extends ConsumerState<SentenceReadItem>
 
   void _confirmEditing() {
     final newText = _editController.text.trim();
+    debugPrint('[_confirmEditing] newText=$newText, original=${widget.sentence.en}');
     if (newText.isNotEmpty && newText != widget.sentence.en) {
+      debugPrint('[_confirmEditing] 调用 onEdit 回调');
       widget.onEdit?.call(newText);
+    } else {
+      debugPrint('[_confirmEditing] 文本无变化，不调用 onEdit');
     }
     setState(() {
       _isEditing = false;
