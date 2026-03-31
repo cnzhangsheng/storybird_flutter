@@ -1264,19 +1264,54 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('删除句子'),
-          content: const Text('确定要删除这个句子吗？'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.errorContainer.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  LucideIcons.trash2,
+                  color: AppColors.onErrorContainer,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text('删除句子'),
+            ],
+          ),
+          content: const Text('确定要删除这个句子吗？删除后将无法恢复。'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.onSurfaceVariant,
+              ),
               child: const Text('取消'),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
+                backgroundColor: AppColors.errorContainer,
+                foregroundColor: AppColors.onErrorContainer,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
               ),
-              child: const Text('删除'),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.trash2, size: 16),
+                  SizedBox(width: 6),
+                  Text('删除'),
+                ],
+              ),
             ),
           ],
         );
