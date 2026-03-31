@@ -803,8 +803,9 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
             final index = sentenceIds.indexOf(id);
             return sentence.copyWith(sentenceOrder: index + 1);
           }
-          return sentenceMap[id]!;
-        }).toList();
+          // 如果找不到句子，跳过
+          return null;
+        }).whereType<Sentence>().toList();
 
         updatedPages[state.currentPage] = page.copyWith(sentences: reorderedSentences);
       }
@@ -821,8 +822,8 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
                 final index = sentenceIds.indexOf(id);
                 return sentence.copyWith(sentenceOrder: index + 1);
               }
-              return sentenceMap[id]!;
-            }).toList();
+              return null;
+            }).whereType<Sentence>().toList();
             updatedBookDetailPages.add(page.copyWith(sentences: reorderedSentences));
           } else {
             updatedBookDetailPages.add(page);

@@ -146,16 +146,16 @@ class _SentenceReadItemState extends ConsumerState<SentenceReadItem>
                   },
                   child: Container(
                     width: actionWidth / 2,
-                    color: AppColors.error,
+                    color: AppColors.errorContainer,
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(LucideIcons.trash2, color: Colors.white, size: 22),
+                        Icon(LucideIcons.trash2, color: AppColors.onErrorContainer, size: 22),
                         const SizedBox(height: 4),
-                        const Text(
+                        Text(
                           '删除',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: AppColors.onErrorContainer,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
