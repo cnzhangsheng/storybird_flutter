@@ -770,6 +770,80 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
   void clearError() {
     state = state.copyWith(clearError: true);
   }
+
+  /// ========================================
+  /// 重新排序句子
+  /// ========================================
+  Future<bool> reorderSentences(List<String> sentenceIds) async {
+    if (state.currentBook == null) return false;
+
+    try {
+      debugPrint('[reorderSentences] 重新排序: $sentenceIds');
+
+      // 调用 API 更新排序
+      await booksApi.reorderSentences(
+        bookId: state.currentBook!.id,
+        pageNumber: state.currentPage + 1,
+        sentenceIds: sentenceIds,
+      );
+
+      // 更新本地缓存中的句子顺序
+      final updatedPages = Map<int, BookPage>.from(state.loadedPages);
+      if (updatedPages.containsKey(state.currentPage)) {
+        final page = updatedPages[state.currentPage]!;
+
+        // 创建句子ID到句子的映射
+        final sentenceMap = {for (var s in page.sentences) s.id: s};
+
+        // 按新顺序重建句子列表
+        final reorderedSentences = sentenceIds.map((id) {
+          final sentence = sentenceMap[id];
+          if (sentence != null) {
+            // 更新序号
+            final index = sentenceIds.indexOf(id);
+            return sentence.copyWith(sentenceOrder: index + 1);
+          }
+          return sentenceMap[id]!;
+        }).toList();
+
+        updatedPages[state.currentPage] = page.copyWith(sentences: reorderedSentences);
+      }
+
+      // 更新 bookDetail 中的句子
+      if (state.bookDetail != null) {
+        final updatedBookDetailPages = <BookPage>[];
+        for (final page in state.bookDetail!.pages) {
+          if (page.pageNumber == state.currentPage + 1) {
+            final sentenceMap = {for (var s in page.sentences) s.id: s};
+            final reorderedSentences = sentenceIds.map((id) {
+              final sentence = sentenceMap[id];
+              if (sentence != null) {
+                final index = sentenceIds.indexOf(id);
+                return sentence.copyWith(sentenceOrder: index + 1);
+              }
+              return sentenceMap[id]!;
+            }).toList();
+            updatedBookDetailPages.add(page.copyWith(sentences: reorderedSentences));
+          } else {
+            updatedBookDetailPages.add(page);
+          }
+        }
+        state = state.copyWith(
+          loadedPages: updatedPages,
+          bookDetail: state.bookDetail!.copyWith(pages: updatedBookDetailPages),
+        );
+      } else {
+        state = state.copyWith(loadedPages: updatedPages);
+      }
+
+      debugPrint('[reorderSentences] 排序更新成功');
+      return true;
+    } catch (e) {
+      debugPrint('[reorderSentences] 排序更新失败: $e');
+      state = state.copyWith(error: '排序更新失败: $e');
+      return false;
+    }
+  }
 }
 
 /// ========================================

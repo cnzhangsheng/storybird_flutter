@@ -409,6 +409,17 @@ class BooksApi {
       'zh': zh,
     });
   }
+
+  /// Reorder sentences in a page
+  Future<void> reorderSentences({
+    required String bookId,
+    required int pageNumber,
+    required List<String> sentenceIds,
+  }) async {
+    await _client.put('/books/$bookId/pages/$pageNumber/sentences/reorder', auth: true, body: {
+      'sentence_ids': sentenceIds,
+    });
+  }
 }
 
 /// Users API service

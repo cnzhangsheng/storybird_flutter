@@ -1107,33 +1107,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           Expanded(
             child: sentences.isEmpty
                 ? _buildEmptySentences()
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    itemCount: sentences.length + 1, // +1 for add button
-                    itemBuilder: (context, index) {
-                      // 最后一项是添加按钮
-                      if (index == sentences.length) {
-                        return _buildAddSentenceButton();
-                      }
-
-                      final sentence = sentences[index];
-                      final isActive = activeSentenceId == sentence.id;
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: SentenceReadItem(
-                          key: ValueKey('sentence_${sentence.id}_$currentPage'),
-                          sentence: sentence,
-                          index: index + 1,
-                          isActive: isActive,
-                          showTranslation: showTranslation,
-                          onEdit: (newText) {
-                            _onSentenceEdit(sentence, newText);
-                          },
-                        ),
-                      );
-                    },
-                  ),
+                : sentences.length == 1
+                    ? _buildSingleSentenceList(sentences, activeSentenceId, showTranslation, currentPage)
+                    : _buildReorderableSentenceList(sentences, activeSentenceId, showTranslation, currentPage),
           ),
         ],
       ),
@@ -1161,6 +1137,94 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// 单个句子的列表（不需要拖拽排序）
+  Widget _buildSingleSentenceList(
+    List<Sentence> sentences,
+    String? activeSentenceId,
+    bool showTranslation,
+    int currentPage,
+  ) {
+    final sentence = sentences.first;
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: SentenceReadItem(
+            key: ValueKey('sentence_${sentence.id}_$currentPage'),
+            sentence: sentence,
+            index: 1,
+            isActive: activeSentenceId == sentence.id,
+            showTranslation: showTranslation,
+            onEdit: (newText) {
+              _onSentenceEdit(sentence, newText);
+            },
+          ),
+        ),
+        _buildAddSentenceButton(),
+      ],
+    );
+  }
+
+  /// 可拖拽排序的句子列表
+  Widget _buildReorderableSentenceList(
+    List<Sentence> sentences,
+    String? activeSentenceId,
+    bool showTranslation,
+    int currentPage,
+  ) {
+    return ReorderableListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: sentences.length + 1, // +1 for add button
+      onReorder: (oldIndex, newIndex) async {
+        // 调整 newIndex（因为 ReorderableListView 的特殊行为）
+        if (newIndex > oldIndex) {
+          newIndex -= 1;
+        }
+
+        // 不能拖动添加按钮
+        if (oldIndex >= sentences.length || newIndex >= sentences.length) {
+          return;
+        }
+
+        // 重新排序
+        final newSentences = List<Sentence>.from(sentences);
+        final item = newSentences.removeAt(oldIndex);
+        newSentences.insert(newIndex, item);
+
+        // 更新后端
+        final sentenceIds = newSentences.map((s) => s.id).toList();
+        await ref.read(readingProvider.notifier).reorderSentences(sentenceIds);
+      },
+      itemBuilder: (context, index) {
+        // 最后一项是添加按钮
+        if (index == sentences.length) {
+          return Container(
+            key: const ValueKey('add_sentence_button'),
+            child: _buildAddSentenceButton(),
+          );
+        }
+
+        final sentence = sentences[index];
+        final isActive = activeSentenceId == sentence.id;
+
+        return Container(
+          key: ValueKey('sentence_${sentence.id}_$currentPage'),
+          padding: const EdgeInsets.only(bottom: 12),
+          child: SentenceReadItem(
+            sentence: sentence,
+            index: index + 1,
+            isActive: isActive,
+            showTranslation: showTranslation,
+            onEdit: (newText) {
+              _onSentenceEdit(sentence, newText);
+            },
+          ),
+        );
+      },
     );
   }
 
