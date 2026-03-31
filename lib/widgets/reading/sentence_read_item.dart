@@ -10,11 +10,8 @@ import 'package:storybird_flutter/services/tts_service.dart';
 /// 句子朗读状态枚举
 /// ========================================
 enum SentencePlayState {
-  /// 空闲
   idle,
-  /// 播放中
   playing,
-  /// 暂停中
   paused,
 }
 
@@ -25,24 +22,17 @@ enum SentencePlayState {
 /// - 显示英文句子和序号
 /// - 显示中文翻译（可切换显示/隐藏）
 /// - 独立播放/暂停/继续按钮
-/// - 支持长按编辑修正 OCR 错误
-/// - 播放状态样式反馈
+/// - 左滑显示操作栏（修改/删除）
+/// - 长按拖拽排序
 /// ========================================
 class SentenceReadItem extends ConsumerStatefulWidget {
-  /// 句子数据
   final Sentence sentence;
-
-  /// 句子序号（从1开始）
   final int index;
-
-  /// 是否为当前活跃句子
   final bool isActive;
-
-  /// 是否显示翻译
   final bool showTranslation;
-
-  /// 编辑回调
   final ValueChanged<String>? onEdit;
+  final VoidCallback? onDelete;
+  final bool isDragging;
 
   const SentenceReadItem({
     super.key,
@@ -51,43 +41,38 @@ class SentenceReadItem extends ConsumerStatefulWidget {
     this.isActive = false,
     this.showTranslation = true,
     this.onEdit,
+    this.onDelete,
+    this.isDragging = false,
   });
 
   @override
   ConsumerState<SentenceReadItem> createState() => _SentenceReadItemState();
 }
 
-class _SentenceReadItemState extends ConsumerState<SentenceReadItem> {
-  /// 当前播放状态
+class _SentenceReadItemState extends ConsumerState<SentenceReadItem>
+    with SingleTickerProviderStateMixin {
   SentencePlayState _playState = SentencePlayState.idle;
-
-  /// 是否处于编辑模式
   bool _isEditing = false;
-
-  /// 编辑控制器
   late TextEditingController _editController;
-
-  /// 焦点节点
   final FocusNode _focusNode = FocusNode();
+
+  // 滑动控制
+  double _swipeOffset = 0;
+  bool _isSwiping = false;
 
   @override
   void initState() {
     super.initState();
     _editController = TextEditingController(text: widget.sentence.en);
-    // 添加 TTS 状态监听
     ttsService.addStateCallback(_onTtsStateChanged);
   }
 
-  /// TTS 状态变化回调
   void _onTtsStateChanged() {
     if (!mounted) return;
 
     final readingState = ref.read(readingProvider);
     final ttsState = ttsService.state;
 
-    debugPrint('[SentenceReadItem] TTS状态变化: $ttsState, isPlaying: ${readingState.isPlaying}');
-
-    // 如果当前句子是活跃句子，同步播放状态
     if (widget.isActive) {
       setState(() {
         if (ttsState == TtsState.idle || !readingState.isPlaying) {
@@ -114,73 +99,185 @@ class _SentenceReadItemState extends ConsumerState<SentenceReadItem> {
     final isPlaying = _playState == SentencePlayState.playing;
     final isPaused = _playState == SentencePlayState.paused;
 
-    return GestureDetector(
-      onTap: _onTap,
-      onLongPress: _startEditing,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: widget.isActive
-              ? AppColors.primaryContainer.withValues(alpha: 0.15)
-              : AppColors.surfaceContainerLowest,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: widget.isActive
-                ? AppColors.primaryContainer
-                : Colors.transparent,
-            width: 2,
-          ),
-          boxShadow: widget.isActive
-              ? [
-                  BoxShadow(
-                    color: AppColors.primaryContainer.withValues(alpha: 0.2),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 序号
-            _buildIndexBadge(),
-            const SizedBox(width: 12),
+    // 操作栏宽度（半宽）
+    final actionWidth = MediaQuery.of(context).size.width * 0.4;
 
-            // 句子内容
-            Expanded(
-              child: Column(
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // 底层操作栏
+        Positioned.fill(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Row(
+              children: [
+                const Spacer(),
+                // 编辑按钮
+                GestureDetector(
+                  onTap: () {
+                    _resetSwipe();
+                    _startEditing();
+                  },
+                  child: Container(
+                    width: actionWidth / 2,
+                    color: AppColors.primaryContainer,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(LucideIcons.pencil, color: AppColors.onPrimaryContainer, size: 22),
+                        const SizedBox(height: 4),
+                        Text(
+                          '修改',
+                          style: TextStyle(
+                            color: AppColors.onPrimaryContainer,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // 删除按钮
+                GestureDetector(
+                  onTap: () {
+                    _resetSwipe();
+                    widget.onDelete?.call();
+                  },
+                  child: Container(
+                    width: actionWidth / 2,
+                    color: AppColors.error,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(LucideIcons.trash2, color: Colors.white, size: 22),
+                        const SizedBox(height: 4),
+                        const Text(
+                          '删除',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // 上层内容（可滑动）
+        GestureDetector(
+          onHorizontalDragStart: (_) {
+            _isSwiping = true;
+          },
+          onHorizontalDragUpdate: (details) {
+            if (!_isSwiping) return;
+            setState(() {
+              // 只允许左滑（负值），最大滑动一半宽度
+              _swipeOffset = (_swipeOffset + details.delta.dx).clamp(-actionWidth, 0.0);
+            });
+          },
+          onHorizontalDragEnd: (_) {
+            _isSwiping = false;
+            // 滑动超过一半时保持打开状态
+            if (_swipeOffset < -actionWidth / 2) {
+              setState(() {
+                _swipeOffset = -actionWidth;
+              });
+            } else {
+              _resetSwipe();
+            }
+          },
+          onTap: _swipeOffset < 0 ? _resetSwipe : _onTap,
+          child: AnimatedContainer(
+            duration: _isSwiping ? Duration.zero : const Duration(milliseconds: 200),
+            transform: Matrix4.translationValues(_swipeOffset, 0, 0),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              curve: Curves.easeOut,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: widget.isDragging
+                    ? AppColors.tertiaryContainer.withValues(alpha: 0.3)
+                    : widget.isActive
+                        ? AppColors.primaryContainer.withValues(alpha: 0.15)
+                        : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: widget.isDragging
+                      ? AppColors.tertiaryContainer
+                      : widget.isActive
+                          ? AppColors.primaryContainer
+                          : Colors.transparent,
+                  width: 2,
+                ),
+                boxShadow: widget.isDragging || widget.isActive
+                    ? [
+                        BoxShadow(
+                          color: (widget.isDragging ? AppColors.tertiaryContainer : AppColors.primaryContainer)
+                              .withValues(alpha: 0.3),
+                          blurRadius: 16,
+                          offset: const Offset(0, 8),
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+              ),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 英文句子（可编辑）
-                  _buildSentenceText(),
+                  // 拖拽手柄 + 序号
+                  _buildIndexBadge(),
+                  const SizedBox(width: 12),
+
+                  // 句子内容
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSentenceText(),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  // 播放按钮
+                  _buildPlayButton(isPlaying, isPaused),
                 ],
               ),
             ),
-
-            const SizedBox(width: 12),
-
-            // 播放按钮
-            _buildPlayButton(isPlaying, isPaused),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
-  /// ========================================
-  /// 序号徽章
-  /// ========================================
+  void _resetSwipe() {
+    setState(() {
+      _swipeOffset = 0;
+    });
+  }
+
   Widget _buildIndexBadge() {
     return Container(
       width: 28,
       height: 28,
       decoration: BoxDecoration(
-        color: widget.isActive
-            ? AppColors.secondaryContainer
-            : AppColors.surfaceContainerHigh,
+        color: widget.isDragging
+            ? AppColors.tertiaryContainer
+            : widget.isActive
+                ? AppColors.secondaryContainer
+                : AppColors.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Center(
@@ -189,18 +286,17 @@ class _SentenceReadItemState extends ConsumerState<SentenceReadItem> {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w800,
-            color: widget.isActive
-                ? AppColors.onSecondaryContainer
-                : AppColors.onSurfaceVariant,
+            color: widget.isDragging
+                ? AppColors.onTertiaryContainer
+                : widget.isActive
+                    ? AppColors.onSecondaryContainer
+                    : AppColors.onSurfaceVariant,
           ),
         ),
       ),
     );
   }
 
-  /// ========================================
-  /// 句子文本（支持编辑，支持显示翻译）
-  /// ========================================
   Widget _buildSentenceText() {
     if (_isEditing) {
       return TextField(
@@ -224,28 +320,18 @@ class _SentenceReadItemState extends ConsumerState<SentenceReadItem> {
           suffixIcon: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 取消按钮
               GestureDetector(
                 onTap: _cancelEditing,
                 child: Container(
                   padding: const EdgeInsets.all(6),
-                  child: const Icon(
-                    LucideIcons.x,
-                    size: 18,
-                    color: AppColors.error,
-                  ),
+                  child: const Icon(LucideIcons.x, size: 18, color: AppColors.error),
                 ),
               ),
-              // 确认按钮
               GestureDetector(
                 onTap: _confirmEditing,
                 child: Container(
                   padding: const EdgeInsets.all(6),
-                  child: const Icon(
-                    LucideIcons.check,
-                    size: 18,
-                    color: AppColors.primaryContainer,
-                  ),
+                  child: const Icon(LucideIcons.check, size: 18, color: AppColors.primaryContainer),
                 ),
               ),
             ],
@@ -258,7 +344,6 @@ class _SentenceReadItemState extends ConsumerState<SentenceReadItem> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 英文句子
         Text(
           widget.sentence.en,
           style: TextStyle(
@@ -270,8 +355,6 @@ class _SentenceReadItemState extends ConsumerState<SentenceReadItem> {
             height: 1.5,
           ),
         ),
-
-        // 中文翻译（根据 showTranslation 决定是否显示）
         if (widget.showTranslation && widget.sentence.zh.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 6),
@@ -291,9 +374,6 @@ class _SentenceReadItemState extends ConsumerState<SentenceReadItem> {
     );
   }
 
-  /// ========================================
-  /// 播放按钮
-  /// ========================================
   Widget _buildPlayButton(bool isPlaying, bool isPaused) {
     IconData icon;
     Color bgColor;
@@ -330,43 +410,27 @@ class _SentenceReadItemState extends ConsumerState<SentenceReadItem> {
             ),
           ],
         ),
-        child: Icon(
-          icon,
-          size: 22,
-          color: iconColor,
-        ),
+        child: Icon(icon, size: 22, color: iconColor),
       ),
     );
   }
 
-  /// ========================================
-  /// 点击事件
-  /// ========================================
   void _onTap() {
     if (_isEditing) return;
-
-    // 设置为活跃句子
     ref.read(readingProvider.notifier).setActiveSentence(widget.sentence.id);
   }
 
-  /// ========================================
-  /// 播放按钮点击
-  /// ========================================
   Future<void> _onPlayTap() async {
     if (_isEditing) return;
 
-    // 立即显示播放状态
     setState(() {
       _playState = SentencePlayState.playing;
     });
 
-    // 设置为活跃句子
     ref.read(readingProvider.notifier).setActiveSentence(widget.sentence.id);
 
-    // 通过 provider 切换播放状态
     final success = await ref.read(readingProvider.notifier).togglePlayPause(widget.sentence);
 
-    // 更新本地状态
     if (mounted) {
       setState(() {
         final readingState = ref.read(readingProvider);
@@ -377,7 +441,6 @@ class _SentenceReadItemState extends ConsumerState<SentenceReadItem> {
         }
       });
 
-      // 播放失败时显示错误提示
       if (!success) {
         final readingState = ref.read(readingProvider);
         if (readingState.error != null) {
@@ -395,22 +458,15 @@ class _SentenceReadItemState extends ConsumerState<SentenceReadItem> {
     }
   }
 
-  /// ========================================
-  /// 开始编辑
-  /// ========================================
   void _startEditing() {
     setState(() {
       _isEditing = true;
     });
-    // 延迟聚焦，确保键盘弹出
     Future.delayed(const Duration(milliseconds: 100), () {
       _focusNode.requestFocus();
     });
   }
 
-  /// ========================================
-  /// 取消编辑
-  /// ========================================
   void _cancelEditing() {
     _editController.text = widget.sentence.en;
     setState(() {
@@ -418,9 +474,6 @@ class _SentenceReadItemState extends ConsumerState<SentenceReadItem> {
     });
   }
 
-  /// ========================================
-  /// 确认编辑
-  /// ========================================
   void _confirmEditing() {
     final newText = _editController.text.trim();
     if (newText.isNotEmpty && newText != widget.sentence.en) {

@@ -1167,6 +1167,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
             onEdit: (newText) {
               _onSentenceEdit(sentence, newText);
             },
+            onDelete: () => _onDeleteSentence(sentence.id),
           ),
         ),
         _buildAddSentenceButton(),
@@ -1183,29 +1184,52 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   ) {
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: sentences.length + 1, // +1 for add button
+      itemCount: sentences.length + 1,
       onReorder: (oldIndex, newIndex) async {
-        // 调整 newIndex（因为 ReorderableListView 的特殊行为）
         if (newIndex > oldIndex) {
           newIndex -= 1;
         }
 
-        // 不能拖动添加按钮
         if (oldIndex >= sentences.length || newIndex >= sentences.length) {
           return;
         }
 
-        // 重新排序
         final newSentences = List<Sentence>.from(sentences);
         final item = newSentences.removeAt(oldIndex);
         newSentences.insert(newIndex, item);
 
-        // 更新后端
         final sentenceIds = newSentences.map((s) => s.id).toList();
         await ref.read(readingProvider.notifier).reorderSentences(sentenceIds);
       },
+      proxyDecorator: (child, index, animation) {
+        // 拖拽时的样式
+        return AnimatedBuilder(
+          animation: animation,
+          builder: (context, child) {
+            final animValue = Curves.easeInOut.transform(animation.value);
+            final elevation = 1 + animValue * 8;
+            final scale = 1 + animValue * 0.02;
+            return Transform.scale(
+              scale: scale,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.tertiaryContainer.withValues(alpha: 0.4),
+                      blurRadius: elevation * 2,
+                      offset: Offset(0, elevation),
+                    ),
+                  ],
+                ),
+                child: child,
+              ),
+            );
+          },
+          child: child,
+        );
+      },
       itemBuilder: (context, index) {
-        // 最后一项是添加按钮
         if (index == sentences.length) {
           return Container(
             key: const ValueKey('add_sentence_button'),
@@ -1227,10 +1251,50 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
             onEdit: (newText) {
               _onSentenceEdit(sentence, newText);
             },
+            onDelete: () => _onDeleteSentence(sentence.id),
           ),
         );
       },
     );
+  }
+
+  /// 删除句子
+  Future<void> _onDeleteSentence(String sentenceId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('删除句子'),
+          content: const Text('确定要删除这个句子吗？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+              ),
+              child: const Text('删除'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      final success = await ref.read(readingProvider.notifier).deleteSentence(sentenceId);
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('句子已删除')),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('删除失败，请重试')),
+        );
+      }
+    }
   }
 
   /// 添加句子按钮或输入框

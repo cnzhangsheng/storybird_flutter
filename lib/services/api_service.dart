@@ -422,6 +422,14 @@ class BooksApi {
       'sentence_ids': sentenceIds,
     });
   }
+
+  /// Delete a sentence
+  Future<void> deleteSentence({
+    required String bookId,
+    required String sentenceId,
+  }) async {
+    await _client.delete('/books/$bookId/sentences/$sentenceId', auth: true);
+  }
 }
 
 /// Users API service

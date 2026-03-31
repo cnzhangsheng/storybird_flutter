@@ -844,6 +844,57 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
       return false;
     }
   }
+
+  /// ========================================
+  /// 删除句子
+  /// ========================================
+  Future<bool> deleteSentence(String sentenceId) async {
+    if (state.currentBook == null) return false;
+
+    try {
+      debugPrint('[deleteSentence] 删除句子: $sentenceId');
+
+      // 调用 API 删除
+      await booksApi.deleteSentence(
+        bookId: state.currentBook!.id,
+        sentenceId: sentenceId,
+      );
+
+      // 更新本地缓存
+      final updatedPages = Map<int, BookPage>.from(state.loadedPages);
+      if (updatedPages.containsKey(state.currentPage)) {
+        final page = updatedPages[state.currentPage]!;
+        final updatedSentences = page.sentences.where((s) => s.id != sentenceId).toList();
+        updatedPages[state.currentPage] = page.copyWith(sentences: updatedSentences);
+      }
+
+      // 更新 bookDetail 中的句子
+      if (state.bookDetail != null) {
+        final updatedBookDetailPages = <BookPage>[];
+        for (final page in state.bookDetail!.pages) {
+          if (page.pageNumber == state.currentPage + 1) {
+            final updatedSentences = page.sentences.where((s) => s.id != sentenceId).toList();
+            updatedBookDetailPages.add(page.copyWith(sentences: updatedSentences));
+          } else {
+            updatedBookDetailPages.add(page);
+          }
+        }
+        state = state.copyWith(
+          loadedPages: updatedPages,
+          bookDetail: state.bookDetail!.copyWith(pages: updatedBookDetailPages),
+        );
+      } else {
+        state = state.copyWith(loadedPages: updatedPages);
+      }
+
+      debugPrint('[deleteSentence] 句子删除成功');
+      return true;
+    } catch (e) {
+      debugPrint('[deleteSentence] 删除失败: $e');
+      state = state.copyWith(error: '删除句子失败: $e');
+      return false;
+    }
+  }
 }
 
 /// ========================================
