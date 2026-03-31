@@ -707,6 +707,64 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
   }
 
   /// ========================================
+  /// 创建新句子
+  /// ========================================
+  Future<Sentence?> createSentence(String en, String zh) async {
+    if (state.currentBook == null) return null;
+
+    try {
+      debugPrint('[createSentence] 创建句子: en=$en, zh=$zh');
+
+      // 调用 API 创建句子
+      final response = await booksApi.createSentence(
+        bookId: state.currentBook!.id,
+        pageNumber: state.currentPage + 1, // API 使用 1-based 页码
+        en: en,
+        zh: zh,
+      );
+
+      // 创建新的 Sentence 对象
+      final newSentence = Sentence.fromJson(response);
+
+      // 更新本地缓存
+      final updatedPages = Map<int, BookPage>.from(state.loadedPages);
+      if (updatedPages.containsKey(state.currentPage)) {
+        final page = updatedPages[state.currentPage]!;
+        final updatedSentences = List<Sentence>.from(page.sentences);
+        updatedSentences.add(newSentence);
+        updatedPages[state.currentPage] = page.copyWith(sentences: updatedSentences);
+      }
+
+      // 更新 bookDetail 中的句子
+      if (state.bookDetail != null) {
+        final updatedBookDetailPages = <BookPage>[];
+        for (final page in state.bookDetail!.pages) {
+          if (page.pageNumber == state.currentPage + 1) {
+            final updatedSentences = List<Sentence>.from(page.sentences);
+            updatedSentences.add(newSentence);
+            updatedBookDetailPages.add(page.copyWith(sentences: updatedSentences));
+          } else {
+            updatedBookDetailPages.add(page);
+          }
+        }
+        state = state.copyWith(
+          loadedPages: updatedPages,
+          bookDetail: state.bookDetail!.copyWith(pages: updatedBookDetailPages),
+        );
+      } else {
+        state = state.copyWith(loadedPages: updatedPages);
+      }
+
+      debugPrint('[createSentence] 句子创建成功: ${newSentence.id}');
+      return newSentence;
+    } catch (e) {
+      debugPrint('[createSentence] 创建失败: $e');
+      state = state.copyWith(error: '创建句子失败: $e');
+      return null;
+    }
+  }
+
+  /// ========================================
   /// 清除错误
   /// ========================================
   void clearError() {

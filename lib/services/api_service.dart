@@ -396,6 +396,19 @@ class BooksApi {
       'text': text,
     });
   }
+
+  /// Create new sentence in a page
+  Future<Map<String, dynamic>> createSentence({
+    required String bookId,
+    required int pageNumber,
+    required String en,
+    String zh = '',
+  }) async {
+    return _client.post('/books/$bookId/pages/$pageNumber/sentences', auth: true, body: {
+      'en': en,
+      'zh': zh,
+    });
+  }
 }
 
 /// Users API service

@@ -1109,8 +1109,13 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                 ? _buildEmptySentences()
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    itemCount: sentences.length,
+                    itemCount: sentences.length + 1, // +1 for add button
                     itemBuilder: (context, index) {
+                      // 最后一项是添加按钮
+                      if (index == sentences.length) {
+                        return _buildAddSentenceButton();
+                      }
+
                       final sentence = sentences[index];
                       final isActive = activeSentenceId == sentence.id;
 
@@ -1157,6 +1162,121 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         ],
       ),
     );
+  }
+
+  /// 添加句子按钮
+  Widget _buildAddSentenceButton() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, top: 8),
+      child: InkWell(
+        onTap: _showAddSentenceDialog,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: AppColors.primaryContainer.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.primaryContainer.withValues(alpha: 0.3),
+              style: BorderStyle.solid,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                LucideIcons.plus,
+                size: 20,
+                color: AppColors.primaryContainer,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '添加新句子',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primaryContainer,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 显示添加句子对话框
+  Future<void> _showAddSentenceDialog() async {
+    final enController = TextEditingController();
+    final zhController = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('添加新句子'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: enController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: '英文句子',
+                  hintText: 'Enter English sentence...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: zhController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: '中文翻译',
+                  hintText: '输入中文翻译...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('添加'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == true && mounted) {
+      final en = enController.text.trim();
+      final zh = zhController.text.trim();
+
+      if (en.isEmpty && zh.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请输入句子内容')),
+        );
+        return;
+      }
+
+      // 调用 Provider 创建句子
+      final newSentence = await ref.read(readingProvider.notifier).createSentence(en, zh);
+
+      if (newSentence != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('句子添加成功')),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('添加失败，请重试')),
+        );
+      }
+    }
   }
 
   /// 句子列表标题栏（紧凑设计）
