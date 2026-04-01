@@ -313,9 +313,22 @@ class CreateNotifier extends StateNotifier<CreateState> {
     } catch (e, stackTrace) {
       _log('生成异常', e.toString());
       _log('堆栈', stackTrace.toString());
+
+      // 检测是否是连接关闭错误（切换应用导致）
+      String errorMessage = '生成失败: $e';
+      final errorStr = e.toString().toLowerCase();
+
+      if (errorStr.contains('connection closed') ||
+          errorStr.contains('connection reset') ||
+          errorStr.contains('broken pipe') ||
+          errorStr.contains('socketexception') ||
+          errorStr.contains('clientexception')) {
+        errorMessage = '网络连接已断开，可能是因为切换了应用。\n请检查绘本架，如果未生成成功请重试。';
+      }
+
       state = state.copyWith(
         isGenerating: false,
-        error: '生成失败: $e',
+        error: errorMessage,
       );
       return null;
     }

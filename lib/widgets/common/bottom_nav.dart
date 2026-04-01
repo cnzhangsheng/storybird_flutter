@@ -15,6 +15,17 @@ class BottomNav extends ConsumerWidget {
     required this.currentLocation,
   });
 
+  void _showComingSoon(BuildContext context, String feature) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$feature 功能开发中，敬请期待'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isGenerating = ref.watch(isGeneratingProvider);
@@ -36,7 +47,7 @@ class BottomNav extends ConsumerWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -45,6 +56,12 @@ class BottomNav extends ConsumerWidget {
                 label: '首页',
                 isSelected: currentLocation == '/home' || currentLocation.startsWith('/reading'),
                 onTap: () => context.go('/home'),
+              ),
+              _NavItem(
+                icon: LucideIcons.compass,
+                label: '探索',
+                isSelected: currentLocation == '/explore',
+                onTap: () => _showComingSoon(context, '探索'),
               ),
               _NavItem(
                 icon: LucideIcons.edit3,
@@ -58,6 +75,12 @@ class BottomNav extends ConsumerWidget {
                     context.go('/create');
                   }
                 },
+              ),
+              _NavItem(
+                icon: LucideIcons.bookOpen,
+                label: '打开',
+                isSelected: currentLocation == '/library',
+                onTap: () => _showComingSoon(context, '打开'),
               ),
               _NavItem(
                 icon: LucideIcons.user,
@@ -94,7 +117,7 @@ class _NavItem extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primaryContainer : Colors.transparent,
           borderRadius: BorderRadius.circular(AppTheme.radiusLG),
@@ -104,17 +127,17 @@ class _NavItem extends StatelessWidget {
           children: [
             Icon(
               icon,
-              size: 22,
+              size: 20,
               color: isSelected
                   ? AppColors.onPrimaryFixed
                   : AppColors.onSurfaceVariant.withValues(alpha: 0.5),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               label,
               style: TextStyle(
                 fontFamily: 'PlusJakartaSans',
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.w700,
                 color: isSelected
                     ? AppColors.onPrimaryFixed

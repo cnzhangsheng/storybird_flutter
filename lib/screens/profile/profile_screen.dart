@@ -116,92 +116,76 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           // 头像区域 - 左侧
           GestureDetector(
             onTap: () => _showAvatarOptions(user),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // 头像外框 - 彩虹边框效果
-                Container(
-                  width: 80,
-                  height: 80,
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.primaryContainer,
-                        AppColors.secondaryContainer,
-                        AppColors.tertiaryContainer,
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primaryContainer.withValues(alpha: 0.4),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: Stack(
-                        children: [
-                          AppImage(
-                            image: user?.avatar ?? '',
-                            fit: BoxFit.cover,
-                            cacheBuster: avatarTimestamp,
-                            errorWidget: Container(
-                              color: AppColors.surfaceContainerHigh,
-                              child: Center(
-                                child: Icon(
-                                  LucideIcons.smile,
-                                  size: 32,
-                                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.5),
-                                ),
-                              ),
-                            ),
-                          ),
-                          // 编辑图标覆盖层
-                          Positioned(
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 2),
-                              color: Colors.black.withValues(alpha: 0.5),
-                              child: const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    LucideIcons.camera,
-                                    size: 10,
-                                    color: Colors.white,
-                                  ),
-                                  SizedBox(width: 2),
-                                  Text(
-                                    '更换',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: Colors.white,
+                  width: 4,
                 ),
-              ],
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primaryContainer.withValues(alpha: 0.4),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: AppImage(
+                        image: user?.avatar ?? '',
+                        fit: BoxFit.cover,
+                        cacheBuster: avatarTimestamp,
+                        errorWidget: Container(
+                          color: AppColors.surfaceContainerHigh,
+                          child: Center(
+                            child: Icon(
+                              LucideIcons.smile,
+                              size: 32,
+                              color: AppColors.onSurfaceVariant.withValues(alpha: 0.5),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // 编辑图标覆盖层
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        color: Colors.black.withValues(alpha: 0.5),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              LucideIcons.camera,
+                              size: 12,
+                              color: Colors.white,
+                            ),
+                            SizedBox(width: 3),
+                            Text(
+                              '更换',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
 

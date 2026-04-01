@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:storybird_flutter/core/theme/app_colors.dart';
 import 'package:storybird_flutter/core/theme/app_theme.dart';
 import 'package:storybird_flutter/providers/create_provider.dart';
+import 'package:storybird_flutter/providers/books_provider.dart';
 
 /// 生成朗读绘本进度页面
 /// 显示生成进度，提示用户可稍后在绘本架查看
@@ -17,7 +18,42 @@ class GenerateProgressScreen extends ConsumerStatefulWidget {
 }
 
 class _GenerateProgressScreenState
-    extends ConsumerState<GenerateProgressScreen> {
+    extends ConsumerState<GenerateProgressScreen> with WidgetsBindingObserver {
+  bool _wasGenerating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    final createState = ref.read(createProvider);
+
+    if (state == AppLifecycleState.paused) {
+      // 应用进入后台，记录是否正在生成
+      _wasGenerating = createState.isGenerating;
+    } else if (state == AppLifecycleState.resumed) {
+      // 应用恢复到前台
+      if (_wasGenerating && !createState.isGenerating && createState.error == null) {
+        // 之前在生成，但现在已经不在生成且没有错误
+        // 说明连接可能已断开，但状态未正确更新
+        // 刷新书籍列表，让用户可以在首页查看
+        ref.read(booksProvider.notifier).loadBooks();
+      }
+      _wasGenerating = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final createState = ref.watch(createProvider);
