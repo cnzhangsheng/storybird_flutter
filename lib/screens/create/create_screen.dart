@@ -27,6 +27,23 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   static const int _maxTotalImages = 50;
 
   @override
+  void initState() {
+    super.initState();
+    // 在下一帧检查是否有正在进行的生成任务
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkGeneratingStatus();
+    });
+  }
+
+  /// 检查是否有正在生成的任务，如果有则跳转到进度页面
+  void _checkGeneratingStatus() {
+    final isGenerating = ref.read(isGeneratingProvider);
+    if (isGenerating) {
+      context.go('/create/progress');
+    }
+  }
+
+  @override
   void dispose() {
     _titleController.dispose();
     super.dispose();
@@ -97,16 +114,27 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     }
   }
 
-  Future<void> _generateBook() async {
+  /// 启动生成并跳转到进度页面
+  void _startGenerateAndNavigate() {
     final title = _titleController.text.trim().isEmpty
         ? '我的绘本'
         : _titleController.text.trim();
 
-    final bookId = await ref.read(createProvider.notifier).generateBook(title);
-
-    if (bookId != null && mounted) {
-      context.go('/reading/$bookId');
+    // 先检查图片
+    final images = ref.read(selectedImagesProvider);
+    if (images.isEmpty) {
+      _showErrorSnackBar('请先上传照片');
+      return;
     }
+
+    // 1. 先设置生成状态（同步）
+    ref.read(createProvider.notifier).startGenerating();
+
+    // 2. 跳转到进度页面
+    context.go('/create/progress');
+
+    // 3. 启动生成任务（异步执行）
+    ref.read(createProvider.notifier).generateBook(title);
   }
 
   void _showSnackBar(String message) {
@@ -139,8 +167,6 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   Widget build(BuildContext context) {
     final images = ref.watch(selectedImagesProvider);
     final coverImage = ref.watch(coverImageProvider);
-    final isGenerating = ref.watch(isGeneratingProvider);
-    final progress = ref.watch(generateProgressProvider);
     final error = ref.watch(createProvider).error;
 
     if (error != null) {
@@ -174,8 +200,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             const SizedBox(height: 24),
             if (images.isNotEmpty) _buildTipsCard(),
             const SizedBox(height: 24),
-            if (images.isNotEmpty && !isGenerating) _buildGenerateButton(images),
-            if (isGenerating) _buildProgressCard(progress),
+            if (images.isNotEmpty) _buildGenerateButton(images),
           ],
         ),
       ),
@@ -556,7 +581,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: images.isEmpty ? null : _generateBook,
+        onPressed: images.isEmpty ? null : _startGenerateAndNavigate,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.secondaryContainer,
           foregroundColor: AppColors.onSecondaryContainer,
@@ -582,58 +607,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
     );
   }
 
-  Widget _buildProgressCard(GenerateProgress progress) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.secondaryContainer.withValues(alpha: 0.2),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          SizedBox(
-            width: 80,
-            height: 80,
-            child: Stack(
-              children: [
-                CircularProgressIndicator(
-                  value: progress.progress / 100,
-                  strokeWidth: 8,
-                  backgroundColor: AppColors.surfaceContainerHigh,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.secondaryContainer),
-                ),
-                Center(
-                  child: Text(
-                    '${progress.progress}%',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.onPrimaryFixed),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            progress.message,
-            style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 16, fontWeight: FontWeight.w700),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '正在生成，请稍候...',
-            style: TextStyle(fontSize: 14, color: AppColors.onSurfaceVariant),
-          ),
-        ],
-      ),
-    );
   }
-}
 
 /// ========================================
 /// 可拖拽排序的图片网格组件

@@ -10,6 +10,8 @@ class AppImage extends StatelessWidget {
   final Widget? errorWidget;
   final double? width;
   final double? height;
+  /// 缓存破坏参数，用于强制刷新图片（如头像更新）
+  final String? cacheBuster;
 
   const AppImage({
     super.key,
@@ -19,6 +21,7 @@ class AppImage extends StatelessWidget {
     this.errorWidget,
     this.width,
     this.height,
+    this.cacheBuster,
   });
 
   bool get isLocalAsset => image != null && image!.startsWith('assets/');
@@ -58,8 +61,14 @@ class AppImage extends StatelessWidget {
       );
     }
 
+    // 构建URL，添加缓存破坏参数
+    String finalUrl = _getFullUrl(image!);
+    if (cacheBuster != null && cacheBuster!.isNotEmpty) {
+      finalUrl = '$finalUrl?t=$cacheBuster';
+    }
+
     return CachedNetworkImage(
-      imageUrl: _getFullUrl(image!),
+      imageUrl: finalUrl,
       fit: fit,
       width: width,
       height: height,

@@ -227,3 +227,8 @@ final isLoadingProvider = Provider<bool>((ref) {
 final authErrorProvider = Provider<String?>((ref) {
   return ref.watch(authProvider).error;
 });
+
+/// 头像更新时间戳，用于强制刷新缓存的头像图片
+final avatarTimestampProvider = StateProvider<String>((ref) {
+  return DateTime.now().millisecondsSinceEpoch.toString();
+});

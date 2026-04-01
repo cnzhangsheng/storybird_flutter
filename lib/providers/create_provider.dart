@@ -185,6 +185,11 @@ class CreateNotifier extends StateNotifier<CreateState> {
     state = const CreateState();
   }
 
+  /// 开始生成（同步设置状态）
+  void startGenerating() {
+    state = state.copyWith(isGenerating: true, error: null);
+  }
+
   /// 生成绘本
   Future<String?> generateBook(String title) async {
     _log('开始生成绘本', {
@@ -195,11 +200,11 @@ class CreateNotifier extends StateNotifier<CreateState> {
 
     if (state.images.isEmpty) {
       _log('错误: 没有图片');
-      state = state.copyWith(error: '请先上传照片');
+      state = state.copyWith(isGenerating: false, error: '请先上传照片');
       return null;
     }
 
-    state = state.copyWith(isGenerating: true, error: null);
+    // 状态已由 startGenerating() 设置，这里不需要再设置
 
     try {
       // 获取 token
@@ -293,6 +298,9 @@ class CreateNotifier extends StateNotifier<CreateState> {
       state = state.copyWith(
         isGenerating: false,
         generatedBookId: bookId,
+        // 清空图片数据，准备下次创作
+        clearCover: true,
+        images: [],
       );
 
       // 刷新书籍列表

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:storybird_flutter/core/theme/app_colors.dart';
 import 'package:storybird_flutter/core/theme/app_theme.dart';
+import 'package:storybird_flutter/providers/create_provider.dart';
 
 /// Bottom navigation bar widget
-class BottomNav extends StatelessWidget {
+class BottomNav extends ConsumerWidget {
   final String currentLocation;
 
   const BottomNav({
@@ -14,7 +16,9 @@ class BottomNav extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isGenerating = ref.watch(isGeneratingProvider);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -45,8 +49,15 @@ class BottomNav extends StatelessWidget {
               _NavItem(
                 icon: LucideIcons.edit3,
                 label: '创作',
-                isSelected: currentLocation == '/create',
-                onTap: () => context.go('/create'),
+                isSelected: currentLocation == '/create' || currentLocation == '/create/progress',
+                onTap: () {
+                  // 如果正在生成，跳转到进度页面；否则跳转到创作页面
+                  if (isGenerating) {
+                    context.go('/create/progress');
+                  } else {
+                    context.go('/create');
+                  }
+                },
               ),
               _NavItem(
                 icon: LucideIcons.user,

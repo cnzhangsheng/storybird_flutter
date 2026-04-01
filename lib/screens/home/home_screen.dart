@@ -26,6 +26,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final books = ref.watch(booksListProvider);
     final user = ref.watch(userProfileProvider);
+    final avatarTimestamp = ref.watch(avatarTimestampProvider);
     final lastBook = books.isNotEmpty ? books.first : null;
 
     return Scaffold(
@@ -45,7 +46,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '你好，小读者！',
+                      '你好，${user?.name ?? '小读者'}！',
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
                         fontSize: 28,
@@ -85,6 +86,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       child: AppImage(
                         image: user?.avatar ?? '',
                         fit: BoxFit.cover,
+                        cacheBuster: avatarTimestamp,
                         errorWidget: Container(
                           color: AppColors.surfaceContainerHigh,
                           child: const Icon(LucideIcons.user),

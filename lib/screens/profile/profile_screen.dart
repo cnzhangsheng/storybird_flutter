@@ -44,11 +44,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             child: Column(
               children: [
-                // 标题
-                _buildTitle(),
-
-                const SizedBox(height: 32),
-
                 // 用户卡片 - 童趣设计
                 _buildUserCard(user),
 
@@ -61,11 +56,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                 // 功能菜单 - 卡片式设计
                 _buildMenuSection(),
-
-                const SizedBox(height: 24),
-
-                // 版本信息
-                _buildVersionInfo(),
               ],
             ),
           ),
@@ -86,63 +76,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   /// ========================================
-  /// 页面标题
-  /// ========================================
-  Widget _buildTitle() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                AppColors.primaryContainer,
-                AppColors.primaryContainer.withValues(alpha: 0.8),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primaryContainer.withValues(alpha: 0.3),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                LucideIcons.sparkles,
-                size: 20,
-                color: AppColors.onPrimaryContainer,
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                '我的小世界',
-                style: TextStyle(
-                  fontFamily: 'PlusJakartaSans',
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.onPrimaryContainer,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// ========================================
-  /// 用户卡片 - 童趣风格
+  /// 用户卡片 - 童趣风格（水平布局）
   /// ========================================
   Widget _buildUserCard(dynamic user) {
+    // 获取头像时间戳用于强制刷新缓存
+    final avatarTimestamp = ref.watch(avatarTimestampProvider);
+
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -152,7 +93,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(
           color: AppColors.primaryContainer.withValues(alpha: 0.2),
           width: 2,
@@ -170,9 +111,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ],
       ),
-      child: Column(
+      child: Row(
         children: [
-          // 头像区域 - 可爱的圆角设计
+          // 头像区域 - 左侧
           GestureDetector(
             onTap: () => _showAvatarOptions(user),
             child: Stack(
@@ -180,9 +121,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               children: [
                 // 头像外框 - 彩虹边框效果
                 Container(
-                  width: 120,
-                  height: 120,
-                  padding: const EdgeInsets.all(8),
+                  width: 80,
+                  height: 80,
+                  padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
@@ -193,33 +134,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(36),
+                    borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
                         color: AppColors.primaryContainer.withValues(alpha: 0.4),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
                   child: Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(28),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(28),
+                      borderRadius: BorderRadius.circular(20),
                       child: Stack(
                         children: [
                           AppImage(
                             image: user?.avatar ?? '',
                             fit: BoxFit.cover,
+                            cacheBuster: avatarTimestamp,
                             errorWidget: Container(
                               color: AppColors.surfaceContainerHigh,
                               child: Center(
                                 child: Icon(
                                   LucideIcons.smile,
-                                  size: 48,
+                                  size: 32,
                                   color: AppColors.onSurfaceVariant.withValues(alpha: 0.5),
                                 ),
                               ),
@@ -231,21 +173,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             left: 0,
                             right: 0,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              padding: const EdgeInsets.symmetric(vertical: 2),
                               color: Colors.black.withValues(alpha: 0.5),
                               child: const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(
                                     LucideIcons.camera,
-                                    size: 14,
+                                    size: 10,
                                     color: Colors.white,
                                   ),
-                                  SizedBox(width: 4),
+                                  SizedBox(width: 2),
                                   Text(
                                     '更换',
                                     style: TextStyle(
-                                      fontSize: 11,
+                                      fontSize: 9,
                                       color: Colors.white,
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -259,34 +201,72 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   ),
                 ),
+              ],
+            ),
+          ),
 
-                // 等级徽章 - 星星装饰
-                Positioned(
-                  bottom: -8,
-                  right: -8,
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.secondaryContainer,
-                          AppColors.secondaryContainer.withValues(alpha: 0.7),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white, width: 3),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.secondaryContainer.withValues(alpha: 0.5),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+          const SizedBox(width: 16),
+
+          // 右侧信息
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 用户名称 - 点击可编辑
+                GestureDetector(
+                  onTap: () => _showEditNameDialog(user),
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          user?.name ?? 'Lily 小象',
+                          style: const TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.onPrimaryFixed,
+                            letterSpacing: 0.5,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ],
-                    ),
-                    child: Center(
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        LucideIcons.pencil,
+                        size: 14,
+                        color: AppColors.onSurfaceVariant.withValues(alpha: 0.5),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                // 等级徽章 + 身份标签
+                Row(
+                  children: [
+                    // 等级徽章
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.secondaryContainer,
+                            AppColors.secondaryContainer.withValues(alpha: 0.7),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.secondaryContainer.withValues(alpha: 0.3),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
                       child: Text(
                         'Lv.${user?.level ?? 3}',
                         style: const TextStyle(
@@ -297,75 +277,47 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                       ),
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ),
 
-          const SizedBox(height: 20),
+                    const SizedBox(width: 8),
 
-          // 用户名称 - 大字体儿童风格，点击可编辑
-          GestureDetector(
-            onTap: () => _showEditNameDialog(user),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  user?.name ?? 'Lily 小象',
-                  style: const TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.onPrimaryFixed,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  LucideIcons.pencil,
-                  size: 18,
-                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.5),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 6),
-
-          // 身份标签 - 有趣的称号
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.primaryContainer.withValues(alpha: 0.1),
-                  AppColors.secondaryContainer.withValues(alpha: 0.1),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: AppColors.primaryContainer.withValues(alpha: 0.2),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  LucideIcons.trees,
-                  size: 16,
-                  color: AppColors.primaryContainer,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '森林探索者',
-                  style: TextStyle(
-                    fontFamily: 'BeVietnamPro',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primaryContainer,
-                    letterSpacing: 1,
-                  ),
+                    // 身份标签
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primaryContainer.withValues(alpha: 0.1),
+                            AppColors.secondaryContainer.withValues(alpha: 0.1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppColors.primaryContainer.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            LucideIcons.trees,
+                            size: 12,
+                            color: AppColors.primaryContainer,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '森林探索者',
+                            style: TextStyle(
+                              fontFamily: 'BeVietnamPro',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primaryContainer,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -670,42 +622,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   /// ========================================
-  /// 版本信息
-  /// ========================================
-  Widget _buildVersionInfo() {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.bird,
-              size: 16,
-              color: AppColors.primaryContainer.withValues(alpha: 0.6),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'StoryBird v1.0.0',
-              style: TextStyle(
-                fontFamily: 'BeVietnamPro',
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: AppColors.onSurfaceVariant.withValues(alpha: 0.5),
-                letterSpacing: 2,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// ========================================
   /// 显示头像操作选项
   /// ========================================
   void _showAvatarOptions(dynamic user) {
@@ -842,6 +758,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
       // 更新本地状态
       ref.read(authProvider.notifier).refreshProfile();
+      // 更新头像时间戳，强制刷新缓存
+      ref.read(avatarTimestampProvider.notifier).state =
+          DateTime.now().millisecondsSinceEpoch.toString();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
