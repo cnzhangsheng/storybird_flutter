@@ -77,12 +77,6 @@ class BottomNav extends ConsumerWidget {
                 },
               ),
               _NavItem(
-                icon: LucideIcons.bookOpen,
-                label: '打开',
-                isSelected: currentLocation == '/library',
-                onTap: () => _showComingSoon(context, '打开'),
-              ),
-              _NavItem(
                 icon: LucideIcons.user,
                 label: '我的',
                 isSelected: currentLocation == '/profile',

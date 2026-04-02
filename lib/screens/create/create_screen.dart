@@ -20,7 +20,7 @@ class CreateScreen extends ConsumerStatefulWidget {
 }
 
 class _CreateScreenState extends ConsumerState<CreateScreen> {
-  final _titleController = TextEditingController(text: '我的绘本');
+  late final TextEditingController _titleController;
   final _picker = ImagePicker();
 
   static const int _maxImagesPerPick = 20;
@@ -29,10 +29,16 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   @override
   void initState() {
     super.initState();
-    // 在下一帧检查是否有正在进行的生成任务
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkGeneratingStatus();
-    });
+    // 初始化 TextEditingController（初始值在 didChangeDependencies 中设置）
+    _titleController = TextEditingController();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 从 state 中恢复标题
+    final title = ref.read(createProvider).title;
+    _titleController.text = title;
   }
 
   /// 检查是否有正在生成的任务，如果有则跳转到进度页面
@@ -47,6 +53,14 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   void dispose() {
     _titleController.dispose();
     super.dispose();
+  }
+
+  /// 保存标题到 state
+  void _saveTitle() {
+    final title = _titleController.text.trim();
+    if (title.isNotEmpty) {
+      ref.read(createProvider.notifier).setTitle(title);
+    }
   }
 
   Future<void> _pickImages() async {
@@ -126,6 +140,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
       _showErrorSnackBar('请先上传照片');
       return;
     }
+
+    // 保存标题到 state（重试时可恢复）
+    ref.read(createProvider.notifier).setTitle(title);
 
     // 1. 先设置生成状态（同步）
     ref.read(createProvider.notifier).startGenerating();

@@ -243,12 +243,11 @@ class _GenerateProgressScreenState
 
   Widget _buildButtons(bool isCompleted, bool isFailed, String? bookId) {
     // 返回首页按钮（始终显示）
-    // 生成中不重置状态，完成/失败才重置
     final homeButton = ElevatedButton(
       onPressed: () {
-        // 只有完成或失败时才重置状态
         if (isCompleted || isFailed) {
-          ref.read(createProvider.notifier).reset();
+          // 完成或失败时清空所有状态
+          ref.read(createProvider.notifier).resetAll();
         }
         context.go('/home');
       },
@@ -281,7 +280,7 @@ class _GenerateProgressScreenState
           Expanded(
             child: ElevatedButton(
               onPressed: () {
-                ref.read(createProvider.notifier).reset();
+                ref.read(createProvider.notifier).resetAll();
                 context.go('/reading/$bookId');
               },
               style: ElevatedButton.styleFrom(
@@ -320,6 +319,7 @@ class _GenerateProgressScreenState
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
+                // 只清除错误，保留图片和标题
                 ref.read(createProvider.notifier).clearError();
                 context.go('/create');
               },

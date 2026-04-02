@@ -60,6 +60,9 @@ class CreateState {
   /// 当前编辑的图片索引
   final int currentImageIndex;
 
+  /// 绘本标题
+  final String title;
+
   /// 是否正在生成
   final bool isGenerating;
 
@@ -76,6 +79,7 @@ class CreateState {
     this.coverImage,
     this.images = const [],
     this.currentImageIndex = 0,
+    this.title = '我的绘本',
     this.isGenerating = false,
     this.generateProgress = const GenerateProgress(),
     this.error,
@@ -99,6 +103,7 @@ class CreateState {
     bool clearCover = false,
     List<SelectedImage>? images,
     int? currentImageIndex,
+    String? title,
     bool? isGenerating,
     GenerateProgress? generateProgress,
     String? error,
@@ -108,6 +113,7 @@ class CreateState {
       coverImage: clearCover ? null : (coverImage ?? this.coverImage),
       images: images ?? this.images,
       currentImageIndex: currentImageIndex ?? this.currentImageIndex,
+      title: title ?? this.title,
       isGenerating: isGenerating ?? this.isGenerating,
       generateProgress: generateProgress ?? this.generateProgress,
       error: error,
@@ -183,6 +189,11 @@ class CreateNotifier extends StateNotifier<CreateState> {
   /// 清空所有图片（包括封面）
   void clearImages() {
     state = const CreateState();
+  }
+
+  /// 设置绘本标题
+  void setTitle(String title) {
+    state = state.copyWith(title: title);
   }
 
   /// 开始生成（同步设置状态）
@@ -298,9 +309,10 @@ class CreateNotifier extends StateNotifier<CreateState> {
       state = state.copyWith(
         isGenerating: false,
         generatedBookId: bookId,
-        // 清空图片数据，准备下次创作
+        // 清空图片数据和标题，准备下次创作
         clearCover: true,
         images: [],
+        title: '我的绘本',
       );
 
       // 刷新书籍列表
@@ -339,8 +351,18 @@ class CreateNotifier extends StateNotifier<CreateState> {
     state = state.copyWith(error: null);
   }
 
-  /// 重置状态
+  /// 重置生成状态（保留图片和标题，用于重试）
   void reset() {
+    state = state.copyWith(
+      isGenerating: false,
+      generateProgress: const GenerateProgress(),
+      error: null,
+      generatedBookId: null,
+    );
+  }
+
+  /// 完全重置所有状态（用于生成成功后）
+  void resetAll() {
     state = const CreateState();
   }
 }
@@ -370,4 +392,8 @@ final isGeneratingProvider = Provider<bool>((ref) {
 
 final generateProgressProvider = Provider<GenerateProgress>((ref) {
   return ref.watch(createProvider).generateProgress;
+});
+
+final titleProvider = Provider<String>((ref) {
+  return ref.watch(createProvider).title;
 });
