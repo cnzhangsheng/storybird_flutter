@@ -70,9 +70,7 @@ class BooksNotifier extends StateNotifier<BooksState> {
     } catch (e, stackTrace) {
       _log('加载失败: $e');
       _log('堆栈: $stackTrace');
-      // Fallback to mock data in development
-      _log('使用 Mock 数据');
-      state = BooksState(books: MockBooks.books, isLoading: false);
+      state = BooksState(books: [], isLoading: false, error: e.toString());
     }
   }
 

@@ -1281,7 +1281,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   /// 获取图片提供者
   ImageProvider _getImageProvider(String? imageUrl) {
     if (imageUrl == null || imageUrl.isEmpty) {
-      return const AssetImage('assets/images/book_blue_bird.png');
+      return const AssetImage('assets/images/page_loading.png');
     }
 
     if (imageUrl.startsWith('assets/')) {
@@ -2057,8 +2057,29 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   Future<void> _onSentenceEdit(Sentence original, String newText) async {
     debugPrint('编辑句子: ${original.id} -> $newText');
 
-    // 调用 API 更新句子
+    // 显示加载提示
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Text('正在更新并翻译...'),
+          ],
+        ),
+        duration: Duration(seconds: 10),
+      ),
+    );
+
+    // 调用 API 更新句子（后端会自动翻译）
     final success = await ref.read(readingProvider.notifier).updateSentence(original.id, newText);
+
+    // 清除之前的 SnackBar
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
     if (!success && mounted) {
       // 显示错误提示
@@ -2075,13 +2096,45 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         ref.read(readingProvider.notifier).clearError();
       }
     } else if (mounted && success) {
-      // 显示成功提示
+      // 获取更新后的句子，显示成功提示
+      final updatedSentence = ref.read(readingProvider).currentSentences.firstWhere(
+        (s) => s.id == original.id,
+        orElse: () => original,
+      );
+
+      // 检查翻译是否有变化
+      final zhChanged = updatedSentence.zh != original.zh;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('句子已更新'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(LucideIcons.check, color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('句子已更新'),
+                    if (zhChanged && updatedSentence.zh.isNotEmpty)
+                      Text(
+                        '翻译: ${updatedSentence.zh}',
+                        style: const TextStyle(fontSize: 12, color: Colors.white70),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green.shade600,
           behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
+          duration: const Duration(seconds: 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
     }

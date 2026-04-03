@@ -808,7 +808,7 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
   }
 
   /// ========================================
-  /// 更新句子文本
+  /// 更新句子文本（自动翻译）
   /// ========================================
   Future<bool> updateSentence(String sentenceId, String newText) async {
     if (state.currentBook == null) return false;
@@ -816,12 +816,18 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
     try {
       debugPrint('[updateSentence] 更新句子: $sentenceId -> $newText');
 
-      // 调用 API 更新
-      await booksApi.updateSentence(
+      // 调用 API 更新（后端会自动翻译并返回新的 zh）
+      final response = await booksApi.updateSentence(
         bookId: state.currentBook!.id,
         sentenceId: sentenceId,
         text: newText,
       );
+
+      // 从响应中获取更新后的数据
+      final newEn = response['en'] as String? ?? newText;
+      final newZh = response['zh'] as String? ?? '';
+
+      debugPrint('[updateSentence] API 返回: en=$newEn, zh=$newZh');
 
       // 更新本地缓存
       final updatedPages = Map<int, BookPage>.from(state.loadedPages);
@@ -830,7 +836,10 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
         final sentenceIndex = page.sentences.indexWhere((s) => s.id == sentenceId);
         if (sentenceIndex != -1) {
           final updatedSentences = List<Sentence>.from(page.sentences);
-          updatedSentences[sentenceIndex] = updatedSentences[sentenceIndex].copyWith(en: newText);
+          updatedSentences[sentenceIndex] = updatedSentences[sentenceIndex].copyWith(
+            en: newEn,
+            zh: newZh,
+          );
           updatedPages[entry.key] = page.copyWith(sentences: updatedSentences);
           break;
         }
@@ -843,7 +852,10 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
           final sentenceIndex = page.sentences.indexWhere((s) => s.id == sentenceId);
           if (sentenceIndex != -1) {
             final updatedSentences = List<Sentence>.from(page.sentences);
-            updatedSentences[sentenceIndex] = updatedSentences[sentenceIndex].copyWith(en: newText);
+            updatedSentences[sentenceIndex] = updatedSentences[sentenceIndex].copyWith(
+              en: newEn,
+              zh: newZh,
+            );
             updatedBookDetailPages.add(page.copyWith(sentences: updatedSentences));
           } else {
             updatedBookDetailPages.add(page);
@@ -857,7 +869,7 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
         state = state.copyWith(loadedPages: updatedPages);
       }
 
-      debugPrint('[updateSentence] 句子更新成功');
+      debugPrint('[updateSentence] 句子更新成功，翻译已同步');
       return true;
     } catch (e) {
       debugPrint('[updateSentence] 更新失败: $e');

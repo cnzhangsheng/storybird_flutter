@@ -68,34 +68,3 @@ class Book {
     );
   }
 }
-
-/// Mock books for development
-class MockBooks {
-  MockBooks._();
-
-  static final List<Book> books = [
-    Book(
-      id: '1',
-      title: "The Blue Bird's Journey",
-      level: 1,
-      progress: 65,
-      image: 'assets/images/book_blue_bird.png',
-      isNew: true,
-    ),
-    Book(
-      id: '2',
-      title: 'Moonlight Magic',
-      level: 2,
-      progress: 30,
-      image: 'assets/images/book_moonlight.png',
-      hasAudio: true,
-    ),
-    Book(
-      id: '3',
-      title: 'The Curious Fox',
-      level: 1,
-      progress: 100,
-      image: 'assets/images/book_curious_fox.png',
-    ),
-  ];
-}
