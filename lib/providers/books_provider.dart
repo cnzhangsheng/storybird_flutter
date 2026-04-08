@@ -112,6 +112,7 @@ class BooksNotifier extends StateNotifier<BooksState> {
         coverImage: updatedBook.image,
         isNew: updatedBook.isNew,
         hasAudio: updatedBook.hasAudio,
+        shareType: updatedBook.shareType,
       );
       state = state.copyWith(
         books: state.books.map((book) {

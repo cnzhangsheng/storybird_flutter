@@ -444,6 +444,7 @@ class BooksApi {
     bool? isNew,
     bool? hasAudio,
     String? status,
+    String? shareType,
   }) async {
     final body = <String, dynamic>{};
 
@@ -454,6 +455,7 @@ class BooksApi {
     if (isNew != null) body['is_new'] = isNew;
     if (hasAudio != null) body['has_audio'] = hasAudio;
     if (status != null) body['status'] = status;
+    if (shareType != null) body['share_type'] = shareType;
 
     return _client.put('/books/$bookId', auth: true, body: body);
   }
@@ -461,6 +463,22 @@ class BooksApi {
   /// Delete book
   Future<void> deleteBook(String bookId) async {
     await _client.delete('/books/$bookId', auth: true);
+  }
+
+  /// Add book to shelf
+  Future<void> addToShelf(String bookId) async {
+    await _client.post('/books/$bookId/shelf', auth: true);
+  }
+
+  /// Remove book from shelf
+  Future<void> removeFromShelf(String bookId) async {
+    await _client.delete('/books/$bookId/shelf', auth: true);
+  }
+
+  /// Check if book is in shelf
+  Future<bool> checkShelfStatus(String bookId) async {
+    final response = await _client.get('/books/$bookId/shelf-status', auth: true);
+    return response['in_shelf'] as bool? ?? false;
   }
 
   /// Get book page

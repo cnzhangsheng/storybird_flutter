@@ -8,7 +8,9 @@ import 'package:photo_view/photo_view.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:storycoe_flutter/core/theme/app_colors.dart';
 import 'package:storycoe_flutter/models/sentence.dart';
+import 'package:storycoe_flutter/providers/auth_provider.dart';
 import 'package:storycoe_flutter/providers/books_provider.dart';
+import 'package:storycoe_flutter/providers/create_provider.dart';
 import 'package:storycoe_flutter/providers/reading_provider.dart';
 import 'package:storycoe_flutter/services/api_service.dart';
 import 'package:storycoe_flutter/services/tts_service.dart';
@@ -721,9 +723,24 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   }
 
   /// 显示阅读页菜单
-  void _showReadingMenu(BuildContext context) {
+  void _showReadingMenu(BuildContext context) async {
     final book = ref.read(readingProvider).currentBook;
-    if (book == null) return;
+    final bookDetail = ref.read(readingProvider).bookDetail;
+    final currentUser = ref.read(userProfileProvider);
+    if (book == null || bookDetail == null) return;
+
+    // 判断是否是作者
+    final isOwner = currentUser?.id == bookDetail.userId;
+
+    // 检查是否在书架中（非作者需要检查）
+    bool isInShelf = false;
+    if (!isOwner) {
+      try {
+        isInShelf = await booksApi.checkShelfStatus(book.id);
+      } catch (e) {
+        debugPrint('[ReadingScreen] 检查书架状态失败: $e');
+      }
+    }
 
     showModalBottomSheet(
       context: context,
@@ -748,7 +765,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
             ),
             const SizedBox(height: 24),
 
-            // 横竖屏设置按钮
+            // 横竖屏设置按钮（所有人可见）
             _buildMenuButton(
               icon: _orientationMode == 'portrait'
                   ? LucideIcons.smartphone
@@ -769,7 +786,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
 
             const SizedBox(height: 12),
 
-            // 调试按钮
+            // 调试按钮（所有人可见）
             _buildMenuButton(
               icon: LucideIcons.bug,
               label: 'TTS 调试',
@@ -780,36 +797,100 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
               },
             ),
 
-            const SizedBox(height: 12),
+            // 作者菜单：编辑、分享类型、删除
+            if (isOwner) ...[
+              const SizedBox(height: 12),
 
-            // 编辑按钮
-            _buildMenuButton(
-              icon: LucideIcons.pencil,
-              label: '编辑绘本',
-              color: AppColors.primaryContainer,
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _showEditTitleDialog(context, book);
-              },
-            ),
+              // 编辑按钮
+              _buildMenuButton(
+                icon: LucideIcons.pencil,
+                label: '编辑绘本',
+                color: AppColors.primaryContainer,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _navigateToEditBook(context, book);
+                },
+              ),
 
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            // 删除按钮
-            _buildMenuButton(
-              icon: LucideIcons.trash2,
-              label: '删除绘本',
-              color: AppColors.error,
-              onTap: () async {
-                Navigator.pop(sheetContext);
+              // 分享类型按钮
+              _buildMenuButton(
+                icon: book.shareType == 'public' ? LucideIcons.globe : LucideIcons.lock,
+                label: book.shareType == 'public' ? '公开绘本' : '私有绘本',
+                color: book.shareType == 'public' ? AppColors.secondaryContainer : AppColors.onSurfaceVariant,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _showShareTypeDialog(context, book);
+                },
+              ),
 
-                // 显示删除确认
-                final confirmed = await showDeleteConfirm(book);
-                if (confirmed && context.mounted) {
-                  context.go('/home');
-                }
-              },
-            ),
+              const SizedBox(height: 12),
+
+              // 删除按钮
+              _buildMenuButton(
+                icon: LucideIcons.trash2,
+                label: '删除绘本',
+                color: AppColors.error,
+                onTap: () async {
+                  Navigator.pop(sheetContext);
+
+                  // 显示删除确认
+                  final confirmed = await showDeleteConfirm(book);
+                  if (confirmed && context.mounted) {
+                    context.go('/home');
+                  }
+                },
+              ),
+            ],
+
+            // 非作者菜单：加入书架/已在书架
+            if (!isOwner) ...[
+              const SizedBox(height: 12),
+
+              _buildMenuButton(
+                icon: isInShelf ? LucideIcons.bookmark : LucideIcons.bookmarkPlus,
+                label: isInShelf ? '已在书架' : '加入书架',
+                color: isInShelf ? AppColors.secondaryContainer : AppColors.primaryContainer,
+                onTap: () async {
+                  Navigator.pop(sheetContext);
+
+                  if (isInShelf) {
+                    // 已在书架，点击移除
+                    try {
+                      await booksApi.removeFromShelf(book.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('已从书架移除')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('移除失败: $e')),
+                        );
+                      }
+                    }
+                  } else {
+                    // 加入书架
+                    try {
+                      await booksApi.addToShelf(book.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('已加入书架')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('加入失败: $e')),
+                        );
+                      }
+                    }
+                  }
+                },
+              ),
+            ],
 
             const SizedBox(height: 24),
 
@@ -959,6 +1040,213 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
             child: const Text('保存'),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 跳转到编辑绘本页面
+  void _navigateToEditBook(BuildContext context, dynamic book) {
+    final readingState = ref.read(readingProvider);
+    final bookDetail = readingState.bookDetail;
+
+    // 获取绘本信息
+    final bookId = book.id;
+    final title = book.title;
+    final shareType = book.shareType ?? 'private';
+    final coverUrl = book.image ?? bookDetail?.coverImage;
+
+    // 获取内页图片 URL 列表
+    final pageUrls = <String>[];
+    if (bookDetail != null) {
+      for (final page in bookDetail.pages) {
+        if (page.imageUrl != null && page.imageUrl!.isNotEmpty) {
+          pageUrls.add(page.imageUrl!);
+        }
+      }
+    }
+
+    // 设置编辑模式数据
+    ref.read(createProvider.notifier).setEditingBook(
+      bookId: bookId,
+      title: title,
+      shareType: shareType,
+      coverUrl: coverUrl,
+      pageUrls: pageUrls,
+    );
+
+    // 跳转到创作页面
+    context.go('/create?edit=$bookId');
+  }
+
+  /// 显示分享类型选择对话框
+  void _showShareTypeDialog(BuildContext context, dynamic book) {
+    String selectedType = book.shareType ?? 'private';
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: const Text(
+            '分享类型',
+            style: TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 私有选项
+              _buildShareTypeOption(
+                context: context,
+                value: 'private',
+                label: '私有',
+                description: '仅自己可见',
+                icon: LucideIcons.lock,
+                isSelected: selectedType == 'private',
+                onTap: () => setState(() => selectedType = 'private'),
+              ),
+              const SizedBox(height: 12),
+              // 公开选项
+              _buildShareTypeOption(
+                context: context,
+                value: 'public',
+                label: '公开',
+                description: '所有用户可见',
+                icon: LucideIcons.globe,
+                isSelected: selectedType == 'public',
+                onTap: () => setState(() => selectedType = 'public'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                '取消',
+                style: TextStyle(color: AppColors.onSurfaceVariant),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+
+                // 更新分享类型
+                final updatedBook = book.copyWith(shareType: selectedType);
+                await ref.read(booksProvider.notifier).updateBook(updatedBook);
+
+                // 同步更新阅读页的书本信息
+                ref.read(readingProvider.notifier).updateCurrentBookShareType(selectedType);
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(selectedType == 'public' ? '已设为公开绘本' : '已设为私有绘本'),
+                      backgroundColor: AppColors.primaryContainer,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryContainer,
+                foregroundColor: AppColors.onPrimaryContainer,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('保存'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建分享类型选项
+  Widget _buildShareTypeOption({
+    required BuildContext context,
+    required String value,
+    required String label,
+    required String description,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primaryContainer.withValues(alpha: 0.1)
+              : AppColors.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primaryContainer
+                : AppColors.onSurfaceVariant.withValues(alpha: 0.2),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.primaryContainer
+                    : AppColors.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: isSelected
+                    ? AppColors.onPrimaryContainer
+                    : AppColors.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected
+                          ? AppColors.onPrimaryFixed
+                          : AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(
+                LucideIcons.check,
+                size: 20,
+                color: AppColors.primaryContainer,
+              ),
+          ],
+        ),
       ),
     );
   }

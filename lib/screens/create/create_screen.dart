@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:storycoe_flutter/core/theme/app_colors.dart';
 import 'package:storycoe_flutter/providers/create_provider.dart';
+import 'package:storycoe_flutter/services/api_service.dart';
 import 'package:storycoe_flutter/widgets/common/bottom_nav.dart';
 
 /// 创作页面
@@ -206,9 +207,13 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final images = ref.watch(selectedImagesProvider);
-    final coverImage = ref.watch(coverImageProvider);
-    final error = ref.watch(createProvider).error;
+    final createState = ref.watch(createProvider);
+    final images = createState.images;
+    final coverImage = createState.coverImage;
+    final error = createState.error;
+    final isEditing = createState.isEditing;
+    final editingCoverUrl = createState.editingCoverUrl;
+    final editingPageUrls = createState.editingPageUrls;
 
     if (error != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -216,6 +221,9 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
         ref.read(createProvider.notifier).clearError();
       });
     }
+
+    // 是否有内容图片（包括编辑模式的远程图片）
+    final hasContentImages = images.isNotEmpty || editingPageUrls.isNotEmpty;
 
     return Scaffold(
       bottomNavigationBar: const BottomNav(currentLocation: '/create'),
@@ -232,16 +240,17 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             _buildHeader(),
             const SizedBox(height: 32),
             // 第一行：绘本封面（缩小）+ 绘本名称
-            _buildCoverAndTitleRow(coverImage),
+            _buildCoverAndTitleRow(coverImage, editingCoverUrl),
             const SizedBox(height: 24),
             // 第二行：绘本内容上传
             _buildContentUpload(),
             const SizedBox(height: 24),
-            if (images.isNotEmpty) _buildImageGrid(images),
+            // 图片网格（支持本地图片和编辑模式的远程图片）
+            if (hasContentImages) _buildImageGridWithEditing(images, editingPageUrls),
             const SizedBox(height: 24),
-            if (images.isNotEmpty) _buildTipsCard(),
+            if (hasContentImages) _buildTipsCard(),
             const SizedBox(height: 24),
-            if (images.isNotEmpty) _buildGenerateButton(images),
+            if (hasContentImages) _buildGenerateButton(images),
           ],
         ),
       ),
@@ -249,12 +258,14 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   }
 
   Widget _buildHeader() {
+    final isEditing = ref.watch(createProvider).isEditing;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          '创作新绘本',
-          style: TextStyle(
+        Text(
+          isEditing ? '编辑绘本' : '创作新绘本',
+          style: const TextStyle(
             fontFamily: 'PlusJakartaSans',
             fontSize: 24,
             fontWeight: FontWeight.w900,
@@ -263,7 +274,7 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          '上传绘本照片，生成朗读绘本',
+          isEditing ? '修改绘本信息' : '上传绘本照片，生成朗读绘本',
           style: TextStyle(
             fontFamily: 'BeVietnamPro',
             fontSize: 14,
@@ -276,7 +287,10 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
   }
 
   /// 第一行：绘本封面（缩小）+ 绘本名称
-  Widget _buildCoverAndTitleRow(SelectedImage? coverImage) {
+  Widget _buildCoverAndTitleRow(SelectedImage? coverImage, String? editingCoverUrl) {
+    // 是否有封面（本地或远程）
+    final hasCover = coverImage != null || (editingCoverUrl != null && editingCoverUrl.isNotEmpty);
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -287,17 +301,17 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             width: 80,
             height: 107, // 3:4 比例
             decoration: BoxDecoration(
-              color: coverImage == null
-                  ? AppColors.surfaceContainerLow
-                  : Colors.transparent,
+              color: hasCover
+                  ? Colors.transparent
+                  : AppColors.surfaceContainerLow,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: coverImage == null
-                    ? AppColors.tertiaryContainer.withValues(alpha: 0.3)
-                    : Colors.white,
+                color: hasCover
+                    ? Colors.white
+                    : AppColors.tertiaryContainer.withValues(alpha: 0.3),
                 width: 2,
               ),
-              boxShadow: coverImage != null
+              boxShadow: hasCover
                   ? [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.1),
@@ -307,32 +321,25 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                     ]
                   : null,
             ),
-            child: coverImage == null
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        LucideIcons.imagePlus,
-                        size: 24,
-                        color: AppColors.onSurfaceVariant,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '封面',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: AppColors.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  )
-                : Stack(
+            child: hasCover
+                ? Stack(
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
-                        child: kIsWeb
-                            ? Image.memory(coverImage.bytes!, fit: BoxFit.cover)
-                            : Image.file(File(coverImage.path), fit: BoxFit.cover),
+                        child: coverImage != null
+                            ? (kIsWeb
+                                ? Image.memory(coverImage.bytes!, fit: BoxFit.cover)
+                                : Image.file(File(coverImage.path), fit: BoxFit.cover))
+                            : (editingCoverUrl != null
+                                ? Image.network(
+                                    '${ApiConfig.baseUrl}$editingCoverUrl',
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      color: AppColors.surfaceContainerHigh,
+                                      child: const Icon(LucideIcons.bookOpen, color: AppColors.onSurfaceVariant),
+                                    ),
+                                  )
+                                : const SizedBox()),
                       ),
                       Positioned(
                         right: 4,
@@ -350,6 +357,24 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
                             ),
                             child: const Icon(LucideIcons.x, size: 12, color: Colors.white),
                           ),
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        LucideIcons.imagePlus,
+                        size: 24,
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '封面',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -611,6 +636,100 @@ class _CreateScreenState extends ConsumerState<CreateScreen> {
             ),
         ],
       ),
+    );
+  }
+
+  /// 图片网格（支持本地图片和编辑模式的远程图片）
+  Widget _buildImageGridWithEditing(List<SelectedImage> images, List<String> editingPageUrls) {
+    final totalCount = images.length + editingPageUrls.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '共 $totalCount 张',
+              style: const TextStyle(
+                fontFamily: 'PlusJakartaSans',
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: _pickImages,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.tertiaryContainer,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.plus, size: 16, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text('添加', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    // 如果是编辑模式，清除编辑数据并重置
+                    ref.read(createProvider.notifier).clearEditingBook();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.errorContainer.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.trash2, size: 16, color: AppColors.error),
+                        SizedBox(width: 4),
+                        Text('清空', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.error)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // 混合显示本地图片和远程图片
+        _EditingImageGrid(
+          localImages: images,
+          remoteImageUrls: editingPageUrls,
+          onReorder: (oldIndex, newIndex) {
+            // 编辑模式下暂不支持拖拽排序
+          },
+          onDelete: (index, isRemote) {
+            if (isRemote) {
+              // 删除远程图片 - 从编辑列表中移除
+              final newUrls = List<String>.from(editingPageUrls);
+              if (index < newUrls.length) {
+                newUrls.removeAt(index);
+                ref.read(createProvider.notifier).setEditingBookImages(newUrls);
+              }
+            } else {
+              // 删除本地图片
+              final adjustedIndex = index - editingPageUrls.length;
+              if (adjustedIndex >= 0) {
+                ref.read(createProvider.notifier).removeImage(adjustedIndex);
+              }
+            }
+          },
+        ),
+      ],
     );
   }
 
@@ -1039,6 +1158,180 @@ class _DraggableImageGridState extends State<_DraggableImageGrid>
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Icon(LucideIcons.move, size: 14, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// ========================================
+/// 编辑模式图片网格组件
+/// 显示混合的本地图片和远程图片
+/// ========================================
+class _EditingImageGrid extends StatelessWidget {
+  final List<SelectedImage> localImages;
+  final List<String> remoteImageUrls;
+  final void Function(int oldIndex, int newIndex) onReorder;
+  final void Function(int index, bool isRemote) onDelete;
+
+  const _EditingImageGrid({
+    required this.localImages,
+    required this.remoteImageUrls,
+    required this.onReorder,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final totalCount = localImages.length + remoteImageUrls.length;
+    final itemSize = (MediaQuery.of(context).size.width - 48 - 24) / 3;
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: List.generate(totalCount, (index) {
+        // 先显示远程图片，再显示本地图片
+        if (index < remoteImageUrls.length) {
+          // 远程图片
+          final url = remoteImageUrls[index];
+          return _buildRemoteImageItem(url, index, itemSize);
+        } else {
+          // 本地图片
+          final localIndex = index - remoteImageUrls.length;
+          if (localIndex < localImages.length) {
+            final image = localImages[localIndex];
+            return _buildLocalImageItem(image, index, itemSize);
+          }
+          return const SizedBox();
+        }
+      }),
+    );
+  }
+
+  Widget _buildRemoteImageItem(String url, int index, double itemSize) {
+    return Container(
+      width: itemSize,
+      height: itemSize,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.network(
+              '${ApiConfig.baseUrl}$url',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                color: AppColors.surfaceContainerHigh,
+                child: const Icon(LucideIcons.image, color: AppColors.onSurfaceVariant),
+              ),
+            ),
+            // 页码标签
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '第${index + 1}页',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
+                ),
+              ),
+            ),
+            // 删除按钮
+            Positioned(
+              right: 4,
+              top: 4,
+              child: GestureDetector(
+                onTap: () => onDelete(index, true),
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: AppColors.error,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(LucideIcons.x, size: 14, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLocalImageItem(SelectedImage image, int index, double itemSize) {
+    return Container(
+      width: itemSize,
+      height: itemSize,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            kIsWeb
+                ? Image.memory(image.bytes!, fit: BoxFit.cover)
+                : Image.file(File(image.path), fit: BoxFit.cover),
+            // 页码标签
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '第${index + 1}页',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
+                ),
+              ),
+            ),
+            // 删除按钮
+            Positioned(
+              right: 4,
+              top: 4,
+              child: GestureDetector(
+                onTap: () => onDelete(index, false),
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: AppColors.error,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(LucideIcons.x, size: 14, color: Colors.white),
+                ),
               ),
             ),
           ],

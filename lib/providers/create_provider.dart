@@ -71,6 +71,15 @@ class CreateState {
   /// 生成的书籍 ID
   final String? generatedBookId;
 
+  /// 编辑模式：正在编辑的绘本 ID（null 表示新建模式）
+  final String? editingBookId;
+
+  /// 编辑模式：封面图片 URL（从网络加载）
+  final String? editingCoverUrl;
+
+  /// 编辑模式：内页图片 URL 列表（从网络加载）
+  final List<String> editingPageUrls;
+
   const CreateState({
     this.coverImage,
     this.images = const [],
@@ -81,13 +90,19 @@ class CreateState {
     this.generateProgress = const GenerateProgress(),
     this.error,
     this.generatedBookId,
+    this.editingBookId,
+    this.editingCoverUrl,
+    this.editingPageUrls = const [],
   });
 
-  /// 是否有图片
-  bool get hasImages => images.isNotEmpty;
+  /// 是否处于编辑模式
+  bool get isEditing => editingBookId != null;
 
-  /// 是否有封面
-  bool get hasCover => coverImage != null;
+  /// 是否有图片（包括编辑模式的远程图片）
+  bool get hasImages => images.isNotEmpty || editingPageUrls.isNotEmpty;
+
+  /// 是否有封面（包括编辑模式的远程封面）
+  bool get hasCover => coverImage != null || editingCoverUrl != null;
 
   /// 当前图片
   SelectedImage? get currentImage =>
@@ -106,6 +121,11 @@ class CreateState {
     GenerateProgress? generateProgress,
     String? error,
     String? generatedBookId,
+    String? editingBookId,
+    bool clearEditingBook = false,
+    String? editingCoverUrl,
+    bool clearEditingCover = false,
+    List<String>? editingPageUrls,
   }) {
     return CreateState(
       coverImage: clearCover ? null : (coverImage ?? this.coverImage),
@@ -117,6 +137,9 @@ class CreateState {
       generateProgress: generateProgress ?? this.generateProgress,
       error: error,
       generatedBookId: generatedBookId ?? this.generatedBookId,
+      editingBookId: clearEditingBook ? null : (editingBookId ?? this.editingBookId),
+      editingCoverUrl: clearEditingCover ? null : (editingCoverUrl ?? this.editingCoverUrl),
+      editingPageUrls: editingPageUrls ?? this.editingPageUrls,
     );
   }
 }
@@ -201,6 +224,41 @@ class CreateNotifier extends StateNotifier<CreateState> {
   /// 设置分享类型
   void setShareType(String shareType) {
     state = state.copyWith(shareType: shareType);
+  }
+
+  /// 设置编辑模式数据（从绘本详情跳转到编辑时调用）
+  void setEditingBook({
+    required String bookId,
+    required String title,
+    required String shareType,
+    String? coverUrl,
+    List<String>? pageUrls,
+  }) {
+    _log('设置编辑模式', {
+      'bookId': bookId,
+      'title': title,
+      'shareType': shareType,
+      'hasCover': coverUrl != null,
+      'pageCount': pageUrls?.length ?? 0,
+    });
+
+    state = CreateState(
+      editingBookId: bookId,
+      title: title,
+      shareType: shareType,
+      editingCoverUrl: coverUrl,
+      editingPageUrls: pageUrls ?? [],
+    );
+  }
+
+  /// 清除编辑模式（退出编辑时调用）
+  void clearEditingBook() {
+    state = const CreateState();
+  }
+
+  /// 更新编辑模式的内页图片 URL 列表
+  void setEditingBookImages(List<String> pageUrls) {
+    state = state.copyWith(editingPageUrls: pageUrls);
   }
 
   /// 开始生成（同步设置状态）

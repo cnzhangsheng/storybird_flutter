@@ -828,6 +828,24 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
   }
 
   /// ========================================
+  /// 更新当前书籍分享类型（修改分享类型时调用）
+  /// ========================================
+  void updateCurrentBookShareType(String newShareType) {
+    if (state.currentBook == null) return;
+
+    final updatedBook = state.currentBook!.copyWith(shareType: newShareType);
+    state = state.copyWith(currentBook: updatedBook);
+
+    // 同时更新 bookDetail 的分享类型
+    if (state.bookDetail != null) {
+      final updatedBookDetail = state.bookDetail!.copyWith(shareType: newShareType);
+      state = state.copyWith(bookDetail: updatedBookDetail);
+    }
+
+    log('[ReadingProvider] [updateCurrentBookShareType] 分享类型已更新: $newShareType');
+  }
+
+  /// ========================================
   /// 停止阅读
   /// ========================================
   Future<void> stopReading() async {

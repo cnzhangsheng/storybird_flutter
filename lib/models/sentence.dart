@@ -147,6 +147,7 @@ class BookDetail {
   final bool isNew;
   final bool hasAudio;
   final String status;
+  final String shareType;
   final List<BookPage> pages;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -161,6 +162,7 @@ class BookDetail {
     this.isNew = false,
     this.hasAudio = false,
     this.status = 'draft',
+    this.shareType = 'private',
     this.pages = const [],
     this.createdAt,
     this.updatedAt,
@@ -180,6 +182,7 @@ class BookDetail {
     bool? isNew,
     bool? hasAudio,
     String? status,
+    String? shareType,
     List<BookPage>? pages,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -194,6 +197,7 @@ class BookDetail {
       isNew: isNew ?? this.isNew,
       hasAudio: hasAudio ?? this.hasAudio,
       status: status ?? this.status,
+      shareType: shareType ?? this.shareType,
       pages: pages ?? this.pages,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -218,6 +222,7 @@ class BookDetail {
       isNew: json['is_new'] as bool? ?? false,
       hasAudio: json['has_audio'] as bool? ?? false,
       status: json['status'] as String? ?? 'draft',
+      shareType: json['share_type'] as String? ?? 'private',
       pages: pages,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
@@ -239,6 +244,7 @@ class BookDetail {
       'is_new': isNew,
       'has_audio': hasAudio,
       'status': status,
+      'share_type': shareType,
       'pages': pages.map((p) => p.toJson()).toList(),
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
