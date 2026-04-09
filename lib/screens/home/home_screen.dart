@@ -39,7 +39,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final books = ref.watch(booksListProvider);
+    final myBooks = ref.watch(myBooksProvider);
+    final likedBooks = ref.watch(likedBooksProvider);
     final isLoading = ref.watch(booksLoadingProvider);
     final user = ref.watch(userProfileProvider);
     final avatarTimestamp = ref.watch(avatarTimestampProvider);
@@ -117,7 +118,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // Book shelf header
+                // 我的绘本架
                 Text(
                   '我的绘本架',
                   style: TextStyle(
@@ -129,19 +130,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // Book grid
-                if (books.isEmpty)
-                  _buildEmptyBookShelf(context)
+                if (myBooks.isEmpty)
+                  _buildEmptyMyBookShelf(context)
                 else
                   BookshelfGrid(
-                    books: books,
+                    books: myBooks,
                     onBookTap: (book) {
                       ref.read(readingProvider.notifier).startReading(book);
                       context.go('/reading/${book.id}');
                     },
                   ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
+
+                // 喜欢的绘本
+                if (likedBooks.isNotEmpty) ...[
+                  Text(
+                    '喜欢的绘本',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      fontStyle: FontStyle.italic,
+                      color: AppColors.onPrimaryFixed,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  BookshelfGrid(
+                    books: likedBooks,
+                    onBookTap: (book) {
+                      ref.read(readingProvider.notifier).startReading(book);
+                      context.go('/reading/${book.id}');
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                ],
               ],
             ),
           ),
@@ -150,7 +172,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildEmptyBookShelf(BuildContext context) {
+  Widget _buildEmptyMyBookShelf(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(

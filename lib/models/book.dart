@@ -1,6 +1,7 @@
 /// Book model
 class Book {
   final String id;
+  final String userId;  // 书籍所属用户 ID
   final String title;
   final int level;
   final int progress;
@@ -12,6 +13,7 @@ class Book {
 
   const Book({
     required this.id,
+    required this.userId,
     required this.title,
     required this.level,
     required this.progress,
@@ -24,6 +26,7 @@ class Book {
 
   Book copyWith({
     String? id,
+    String? userId,
     String? title,
     int? level,
     int? progress,
@@ -35,6 +38,7 @@ class Book {
   }) {
     return Book(
       id: id ?? this.id,
+      userId: userId ?? this.userId,
       title: title ?? this.title,
       level: level ?? this.level,
       progress: progress ?? this.progress,
@@ -49,6 +53,7 @@ class Book {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'user_id': userId,
       'title': title,
       'level': level,
       'progress': progress,
@@ -63,6 +68,7 @@ class Book {
   factory Book.fromJson(Map<String, dynamic> json) {
     return Book(
       id: (json['id'] ?? '') as String,
+      userId: (json['user_id'] ?? '') as String,
       title: (json['title'] ?? '未命名绘本') as String,
       level: json['level'] as int? ?? 1,
       progress: json['progress'] as int? ?? 0,

@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:storycoe_flutter/core/theme/app_colors.dart';
+import 'package:storycoe_flutter/models/book.dart';
 import 'package:storycoe_flutter/models/sentence.dart';
 import 'package:storycoe_flutter/providers/auth_provider.dart';
 import 'package:storycoe_flutter/providers/books_provider.dart';
@@ -193,6 +195,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
               book?.title ?? '绘本朗读',
               currentPage,
               totalPages,
+              book,
             ),
 
             // 主内容区域
@@ -305,6 +308,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     String title,
     int currentPage,
     int totalPages,
+    Book? book,
   ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -339,18 +343,38 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           ),
           const SizedBox(width: 12),
 
-          // 绘本名称
+          // 绘本名称（作者可长按编辑）
           Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: AppColors.onPrimaryFixed,
+            child: GestureDetector(
+              onLongPress: _isOwner && book != null
+                  ? () => _showEditTitleDialog(context, book)
+                  : null,
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.onPrimaryFixed,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // 作者显示编辑图标提示
+                  if (_isOwner) ...[
+                    const SizedBox(width: 4),
+                    Icon(
+                      LucideIcons.pencil,
+                      size: 14,
+                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.5),
+                    ),
+                  ],
+                ],
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
           ),
 
@@ -740,6 +764,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     final book = ref.read(readingProvider).currentBook;
     final bookDetail = ref.read(readingProvider).bookDetail;
     final currentUser = ref.read(userProfileProvider);
+    final totalPages = ref.read(readingProvider).totalPages;
     if (book == null || bookDetail == null) return;
 
     // 判断是否是作者
@@ -810,9 +835,37 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
               },
             ),
 
-            // 作者菜单：分享类型、删除
+            // 作者菜单：分享类型、添加页面、删除页面、删除绘本
             if (isOwner) ...[
               const SizedBox(height: 12),
+
+              // 添加页面按钮
+              _buildMenuButton(
+                icon: LucideIcons.plusCircle,
+                label: '添加页面',
+                color: AppColors.primaryContainer,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _showAddPageDialog(context);
+                },
+              ),
+
+              const SizedBox(height: 12),
+
+              // 删除当前页按钮（只有多页时才显示）
+              if (totalPages > 1)
+                _buildMenuButton(
+                  icon: LucideIcons.fileMinus,
+                  label: '删除当前页',
+                  color: AppColors.error,
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    await _confirmDeleteCurrentPage(context);
+                  },
+                ),
+
+              if (totalPages > 1)
+                const SizedBox(height: 12),
 
               // 分享类型按钮
               _buildMenuButton(
@@ -966,6 +1019,158 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         ),
       ),
     );
+  }
+
+  /// ========================================
+  /// 添加页面对话框
+  /// ========================================
+  Future<void> _showAddPageDialog(BuildContext context) async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1920,
+      maxHeight: 1920,
+      imageQuality: 85,
+    );
+
+    if (pickedFile == null) return;
+
+    // 显示加载提示
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      // 读取图片数据
+      final bytes = await pickedFile.readAsBytes();
+      final filename = pickedFile.name;
+
+      // 调用 API 创建页面
+      final success = await ref.read(readingProvider.notifier).createPage(
+            filename,
+            bytes,
+          );
+
+      // 关闭加载提示
+      if (mounted) Navigator.pop(context);
+
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('页面添加成功'),
+            backgroundColor: AppColors.primaryContainer,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      // 关闭加载提示
+      if (mounted) Navigator.pop(context);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('添加页面失败: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  /// ========================================
+  /// 确认删除当前页
+  /// ========================================
+  Future<void> _confirmDeleteCurrentPage(BuildContext context) async {
+    final readingState = ref.read(readingProvider);
+    final currentPage = readingState.currentPage + 1;
+    final totalPages = readingState.totalPages;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        title: const Text(
+          '删除页面',
+          style: TextStyle(
+            fontFamily: 'PlusJakartaSans',
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        content: Text(
+          '确定要删除第 $currentPage 页吗？\n共 $totalPages 页，删除后无法恢复。',
+          style: const TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(
+              '取消',
+              style: TextStyle(color: AppColors.onSurfaceVariant),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      // 显示加载提示
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      try {
+        final success = await ref.read(readingProvider.notifier).deleteCurrentPage();
+
+        // 关闭加载提示
+        if (mounted) Navigator.pop(context);
+
+        if (success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('页面已删除'),
+              backgroundColor: AppColors.onSurfaceVariant,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } catch (e) {
+        // 关闭加载提示
+        if (mounted) Navigator.pop(context);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('删除失败: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
   }
 
   /// 显示编辑标题对话框

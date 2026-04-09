@@ -15,23 +15,30 @@ void _log(String message, [dynamic data]) {
 
 /// Books state
 class BooksState {
-  final List<Book> books;
+  final List<Book> myBooks;  // 用户自己的绘本
+  final List<Book> likedBooks;  // 喜欢的他人公开绘本
   final bool isLoading;
   final String? error;
 
   const BooksState({
-    this.books = const [],
+    this.myBooks = const [],
+    this.likedBooks = const [],
     this.isLoading = false,
     this.error,
   });
 
+  /// 所有书籍（用于兼容旧逻辑）
+  List<Book> get allBooks => [...myBooks, ...likedBooks];
+
   BooksState copyWith({
-    List<Book>? books,
+    List<Book>? myBooks,
+    List<Book>? likedBooks,
     bool? isLoading,
     String? error,
   }) {
     return BooksState(
-      books: books ?? this.books,
+      myBooks: myBooks ?? this.myBooks,
+      likedBooks: likedBooks ?? this.likedBooks,
       isLoading: isLoading ?? this.isLoading,
       error: error,
     );
@@ -47,29 +54,38 @@ class BooksNotifier extends StateNotifier<BooksState> {
 
   /// Load books from API
   Future<void> loadBooks() async {
-    _log('开始加载书籍列表');
+    _log('开始加载绘本架');
     state = state.copyWith(isLoading: true, error: null);
     try {
       final response = await booksApi.listBooks();
       _log('API 响应', response);
 
-      final booksList = response['books'] as List;
-      _log('书籍数量: ${booksList.length}');
-
-      final books = booksList
+      // 解析我的绘本
+      final myBooksList = response['my_books'] as List? ?? [];
+      _log('我的绘本数量: ${myBooksList.length}');
+      final myBooks = myBooksList
           .map((json) {
-            _log('解析书籍: ${json['id']} - ${json['title']}');
+            _log('解析我的绘本: ${json['id']} - ${json['title']}');
             return Book.fromJson(json as Map<String, dynamic>);
           })
           .toList();
 
-      _log('加载完成，共 ${books.length} 本书');
-      state = BooksState(books: books, isLoading: false);
+      // 解析喜欢的绘本
+      final likedBooksList = response['liked_books'] as List? ?? [];
+      _log('喜欢的绘本数量: ${likedBooksList.length}');
+      final likedBooks = likedBooksList
+          .map((json) {
+            _log('解析喜欢的绘本: ${json['id']} - ${json['title']}');
+            return Book.fromJson(json as Map<String, dynamic>);
+          })
+          .toList();
+
+      _log('加载完成，我的绘本 ${myBooks.length} 本，喜欢的绘本 ${likedBooks.length} 本');
+      state = BooksState(myBooks: myBooks, likedBooks: likedBooks, isLoading: false);
     } catch (e, stackTrace) {
       _log('加载失败: $e');
       _log('堆栈: $stackTrace');
-      // 不再使用 Mock 数据回退，显示错误信息
-      state = BooksState(books: [], isLoading: false, error: '加载书籍失败: $e');
+      state = BooksState(myBooks: [], likedBooks: [], isLoading: false, error: '加载绘本失败: $e');
     }
   }
 
@@ -88,7 +104,7 @@ class BooksNotifier extends StateNotifier<BooksState> {
       );
       final book = Book.fromJson(response);
       state = state.copyWith(
-        books: [book, ...state.books],
+        myBooks: [book, ...state.myBooks],
         isLoading: false,
       );
       return book;
@@ -114,11 +130,19 @@ class BooksNotifier extends StateNotifier<BooksState> {
         hasAudio: updatedBook.hasAudio,
         shareType: updatedBook.shareType,
       );
-      state = state.copyWith(
-        books: state.books.map((book) {
-          return book.id == updatedBook.id ? updatedBook : book;
-        }).toList(),
-      );
+      // 更新 myBooks 或 likedBooks
+      final myBookIndex = state.myBooks.indexWhere((b) => b.id == updatedBook.id);
+      final likedBookIndex = state.likedBooks.indexWhere((b) => b.id == updatedBook.id);
+
+      if (myBookIndex != -1) {
+        final updatedMyBooks = List<Book>.from(state.myBooks);
+        updatedMyBooks[myBookIndex] = updatedBook;
+        state = state.copyWith(myBooks: updatedMyBooks);
+      } else if (likedBookIndex != -1) {
+        final updatedLikedBooks = List<Book>.from(state.likedBooks);
+        updatedLikedBooks[likedBookIndex] = updatedBook;
+        state = state.copyWith(likedBooks: updatedLikedBooks);
+      }
       return true;
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -131,7 +155,8 @@ class BooksNotifier extends StateNotifier<BooksState> {
     try {
       await booksApi.deleteBook(bookId);
       state = state.copyWith(
-        books: state.books.where((book) => book.id != bookId).toList(),
+        myBooks: state.myBooks.where((book) => book.id != bookId).toList(),
+        likedBooks: state.likedBooks.where((book) => book.id != bookId).toList(),
       );
       return true;
     } catch (e) {
@@ -145,22 +170,24 @@ class BooksNotifier extends StateNotifier<BooksState> {
     required String title,
     String? image,
     int level = 1,
+    String userId = '',
   }) {
     final book = Book(
       id: const Uuid().v4(),
+      userId: userId,
       title: title,
       level: level,
       progress: 0,
-      image: image, // 不设置默认图片，使用 null
+      image: image,
       isNew: true,
     );
-    state = state.copyWith(books: [book, ...state.books]);
+    state = state.copyWith(myBooks: [book, ...state.myBooks]);
     return book;
   }
 
   /// Update progress
   Future<void> updateProgress(String bookId, int progress) async {
-    final book = state.books.firstWhere((b) => b.id == bookId);
+    final book = state.allBooks.firstWhere((b) => b.id == bookId);
     final updatedBook = book.copyWith(progress: progress);
     await updateBook(updatedBook);
   }
@@ -198,8 +225,17 @@ final booksProvider =
 });
 
 /// Convenience providers
+final myBooksProvider = Provider<List<Book>>((ref) {
+  return ref.watch(booksProvider).myBooks;
+});
+
+final likedBooksProvider = Provider<List<Book>>((ref) {
+  return ref.watch(booksProvider).likedBooks;
+});
+
+/// 所有书籍（兼容旧逻辑）
 final booksListProvider = Provider<List<Book>>((ref) {
-  return ref.watch(booksProvider).books;
+  return ref.watch(booksProvider).allBooks;
 });
 
 final booksLoadingProvider = Provider<bool>((ref) {
@@ -207,7 +243,7 @@ final booksLoadingProvider = Provider<bool>((ref) {
 });
 
 final bookByIdProvider = Provider.family<Book?, String>((ref, bookId) {
-  return ref.watch(booksProvider).books.firstWhere(
+  return ref.watch(booksProvider).allBooks.firstWhere(
         (book) => book.id == bookId,
         orElse: () => throw StateError('Book not found: $bookId'),
       );

@@ -543,6 +543,48 @@ class BooksApi {
   }) async {
     await _client.delete('/books/$bookId/sentences/$sentenceId', auth: true);
   }
+
+  /// Create a new page with image
+  Future<Map<String, dynamic>> createPage({
+    required String bookId,
+    int? pageNumber,
+    required String filename,
+    required List<int> imageBytes,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/books/$bookId/pages');
+    final request = http.MultipartRequest('POST', uri);
+
+    // Add authorization header
+    final token = await _client.getToken();
+    if (token != null) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    // Add page_number if specified
+    if (pageNumber != null) {
+      request.fields['page_number'] = pageNumber.toString();
+    }
+
+    // Add image file
+    request.files.add(http.MultipartFile.fromBytes('image', imageBytes, filename: filename));
+
+    final streamedResponse = await _client.httpClient.send(request);
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw ApiException(
+        statusCode: response.statusCode,
+        message: 'Failed to create page: ${response.body}',
+      );
+    }
+
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// Delete a page
+  Future<void> deletePage(String bookId, int pageNumber) async {
+    await _client.delete('/books/$bookId/pages/$pageNumber', auth: true);
+  }
 }
 
 /// Users API service

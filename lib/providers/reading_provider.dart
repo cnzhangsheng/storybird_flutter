@@ -1104,6 +1104,92 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
   }
 
   /// ========================================
+  /// 刷新绘本详情（添加/删除页面后调用）
+  /// ========================================
+  Future<void> refreshBookDetail() async {
+    if (state.currentBook == null) return;
+
+    try {
+      log('[ReadingProvider] [refreshBookDetail] 刷新绘本详情');
+
+      final bookDetailData = await booksApi.getBook(state.currentBook!.id);
+      final bookDetail = BookDetail.fromJson(bookDetailData);
+
+      // 清除页面缓存
+      state = state.copyWith(
+        bookDetail: bookDetail,
+        loadedPages: {},
+      );
+
+      // 重新加载当前页
+      if (state.currentPage >= bookDetail.totalPages) {
+        // 如果当前页超出范围，跳转到最后一页
+        final newPage = (bookDetail.totalPages - 1).clamp(0, bookDetail.totalPages - 1);
+        state = state.copyWith(currentPage: newPage);
+      }
+
+      await _loadPage(state.currentPage);
+
+      log('[ReadingProvider] [refreshBookDetail] 刷新完成: totalPages=${bookDetail.totalPages}');
+    } catch (e) {
+      log('[ReadingProvider] [refreshBookDetail] 刷新失败: $e');
+      state = state.copyWith(error: '刷新绘本失败: $e');
+    }
+  }
+
+  /// ========================================
+  /// 创建新页面
+  /// ========================================
+  Future<bool> createPage(String filename, List<int> imageBytes, {int? pageNumber}) async {
+    if (state.currentBook == null) return false;
+
+    try {
+      log('[ReadingProvider] [createPage] 创建页面');
+
+      await booksApi.createPage(
+        bookId: state.currentBook!.id,
+        filename: filename,
+        imageBytes: imageBytes,
+        pageNumber: pageNumber,
+      );
+
+      // 刷新绘本详情
+      await refreshBookDetail();
+
+      log('[ReadingProvider] [createPage] 页面创建成功');
+      return true;
+    } catch (e) {
+      log('[ReadingProvider] [createPage] 创建失败: $e');
+      state = state.copyWith(error: '创建页面失败: $e');
+      return false;
+    }
+  }
+
+  /// ========================================
+  /// 删除当前页面
+  /// ========================================
+  Future<bool> deleteCurrentPage() async {
+    if (state.currentBook == null) return false;
+
+    try {
+      final pageNumber = state.currentPage + 1; // API 使用 1-based 页码
+      log('[ReadingProvider] [deleteCurrentPage] 删除页面: $pageNumber');
+
+      await booksApi.deletePage(state.currentBook!.id, pageNumber);
+
+      // 刷新绘本详情
+      await refreshBookDetail();
+
+      log('[ReadingProvider] [deleteCurrentPage] 页面删除成功');
+      return true;
+    } catch (e) {
+      log('[ReadingProvider] [deleteCurrentPage] 删除失败: $e');
+      state = state.copyWith(error: '删除页面失败: $e');
+      return false;
+    }
+  }
+
+  /// ========================================
   /// 整页朗读：播放当前页所有句子
   /// ========================================
   Future<void> playAllSentences() async {
