@@ -95,17 +95,8 @@ class ReadingState {
 
   /// 当前页面数据
   BookPage? get currentPageData {
-    // 优先从缓存获取
-    if (loadedPages.containsKey(currentPage)) {
-      return loadedPages[currentPage];
-    }
-    // 其次从 bookDetail 获取
-    if (bookDetail != null &&
-        currentPage >= 0 &&
-        currentPage < bookDetail!.pages.length) {
-      return bookDetail!.pages[currentPage];
-    }
-    return null;
+    // 只从缓存获取（缓存数据来自 API，包含完整句子）
+    return loadedPages[currentPage];
   }
 
   /// 当前页面的句子列表
@@ -495,28 +486,6 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
     if (state.currentBook == null) {
       log('[ReadingProvider] [_loadPage] 错误: currentBook 为空');
       return;
-    }
-
-    // 检查是否已缓存
-    if (state.loadedPages.containsKey(pageIndex)) {
-      log('[ReadingProvider] [_loadPage] 页面已缓存: pageIndex=$pageIndex');
-      return;
-    }
-
-    // 检查 bookDetail 中是否有该页
-    if (state.bookDetail != null &&
-        pageIndex >= 0 &&
-        pageIndex < state.bookDetail!.pages.length) {
-      final page = state.bookDetail!.pages[pageIndex];
-      log('[ReadingProvider] [_loadPage] bookDetail 中找到页面: pageIndex=$pageIndex, sentences=${page.sentences.length}');
-      if (page.sentences.isNotEmpty) {
-        // 已有数据，加入缓存（使用 LRU 策略）
-        state = state.copyWith(
-          loadedPages: _addToPageCache(state.loadedPages, pageIndex, page),
-        );
-        log('[ReadingProvider] [_loadPage] 从 bookDetail 缓存页面: pageIndex=$pageIndex');
-        return;
-      }
     }
 
     try {
@@ -1201,8 +1170,15 @@ class ReadingNotifier extends StateNotifier<ReadingState> {
           _startPollingPageStatus(pageId);
         } else {
           log('[ReadingProvider] [_startPollingPageStatus] OCR 完成，状态: ${page.status}');
-          // 重新加载当前页面
-          await _loadPage(state.currentPage);
+
+          // 清除该页面的缓存，强制重新加载
+          final pageIndex = page.pageNumber - 1; // pageIndex 从 0 开始
+          final updatedLoadedPages = Map<int, BookPage>.from(state.loadedPages);
+          updatedLoadedPages.remove(pageIndex);
+          state = state.copyWith(loadedPages: updatedLoadedPages);
+
+          // 重新加载该页面
+          await _loadPage(pageIndex);
         }
       } catch (e) {
         log('[ReadingProvider] [_startPollingPageStatus] 轮询失败: $e');
