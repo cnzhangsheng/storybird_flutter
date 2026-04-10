@@ -783,15 +783,17 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (sheetContext) => Container(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             // 顶部拖拽指示条
             Container(
               width: 40,
@@ -969,9 +971,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
               ),
             ),
           ],
-        ),
-      ),
-    );
+        ),  // end of Column
+        ),  // end of SingleChildScrollView
+      ),  // end of Container
+    );  // end of showModalBottomSheet
   }
 
   /// 菜单按钮
